@@ -1,12 +1,345 @@
-// If the repository defines `interface`s, this file can define a minimal world
-// which contains those interfaces, to allow documentation to be generated for
-// them.
-//
-// Proposals should remove these `//` commments, and edit the `world` name and
-// imports below to pull in their own `interface`s.
+package wasi:mcp@0.1.0;
 
-package wasi:example-package;
+/// World for MCP server implementations
+///
+/// This world defines the imports and exports for WebAssembly components
+/// that implement MCP servers. Components can use this world to provide
+/// MCP services to AI applications with full async support.
+world mcp-server-world {
+    /// Import standard WASI interfaces
+    import wasi:io/streams@0.2.0;
+    import wasi:io/poll@0.2.0;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:random/random@0.2.0;
+    
+    /// Import MCP core interfaces
+    import types;
+    import server;
+    import streaming;
+    
+    /// Export server implementation
+    export server;
+    
+    /// Export streaming capabilities (optional)
+    export streaming;
+}
 
-world imports {
-    import example-interface;
+/// World for MCP client implementations
+///
+/// This world defines the imports for WebAssembly components that act as
+/// MCP clients, consuming MCP services from other components.
+world mcp-client-world {
+    /// Import standard WASI interfaces
+    import wasi:io/streams@0.2.0;
+    import wasi:io/poll@0.2.0;
+    import wasi:clocks/wall-clock@0.2.0;
+    
+    /// Import MCP interfaces
+    import types;
+    import client;
+    import streaming;
+    
+    /// Export client implementation
+    export client;
+    
+    /// Export streaming capabilities (optional)
+    export streaming;
+}
+
+/// World for hybrid MCP components
+///
+/// This world defines imports and exports for WebAssembly components
+/// that can act as both MCP servers and clients, enabling complex
+/// MCP service compositions and proxying scenarios.
+world mcp-hybrid-world {
+    /// Import standard WASI interfaces
+    import wasi:io/streams@0.2.0;
+    import wasi:io/poll@0.2.0;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:random/random@0.2.0;
+    
+    /// Import MCP interfaces
+    import types;
+    import server;
+    import client;
+    import streaming;
+    
+    /// Export both server and client capabilities
+    export server;
+    export client;
+    export streaming;
+}
+
+/// World for MCP proxy implementations
+///
+/// This world defines the interface for WebAssembly components that
+/// act as MCP proxies, forwarding requests between clients and servers
+/// while potentially adding middleware functionality.
+world mcp-proxy-world {
+    /// Import standard WASI interfaces
+    import wasi:io/streams@0.2.0;
+    import wasi:io/poll@0.2.0;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:random/random@0.2.0;
+    
+    /// Import MCP interfaces
+    import types;
+    import server;
+    import client;
+    import streaming;
+    
+    /// Export proxy-specific interfaces
+    export server;
+    export client;
+    export streaming;
+    
+    /// Export proxy capabilities
+    export proxy;
+}
+
+/// World for MCP development and testing
+///
+/// This world includes all MCP interfaces and additional utilities
+/// for development, testing, and debugging MCP components.
+world mcp-development-world {
+    /// Import standard WASI interfaces
+    import wasi:io/streams@0.2.0;
+    import wasi:io/poll@0.2.0;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:random/random@0.2.0;
+    
+    /// Import optional WASI interfaces for development
+    import wasi:filesystem/types@0.2.0;
+    import wasi:filesystem/preopens@0.2.0;
+    import wasi:sockets/network@0.2.0;
+    import wasi:http/types@0.2.0;
+    
+    /// Import all MCP interfaces
+    import types;
+    import server;
+    import client;
+    import streaming;
+    
+    /// Export all MCP capabilities
+    export server;
+    export client;
+    export streaming;
+    
+    /// Export development utilities
+    export development;
+}
+
+/// Proxy interface for MCP proxy implementations
+///
+/// This interface defines operations specific to MCP proxy components
+/// that forward requests between clients and servers.
+interface proxy {
+    use types.{mcp-server, mcp-client, error};
+    
+    /// Proxy configuration
+    record proxy-config {
+        /// Maximum number of concurrent connections
+        max-connections: u32,
+        /// Connection timeout in milliseconds
+        timeout: u64,
+        /// Enable request/response logging
+        logging: bool,
+        /// Request rate limiting
+        rate-limit: option<rate-limit-config>,
+        /// Authentication configuration
+        auth: option<auth-config>,
+        /// Additional metadata
+        metadata: option<list<u8>>,
+    }
+    
+    /// Rate limiting configuration
+    record rate-limit-config {
+        /// Maximum requests per second
+        max-requests: u32,
+        /// Burst size
+        burst-size: u32,
+        /// Window size in seconds
+        window-size: u64,
+    }
+    
+    /// Authentication configuration
+    record auth-config {
+        /// Authentication type
+        auth-type: auth-type,
+        /// Authentication parameters
+        parameters: list<u8>,
+    }
+    
+    /// Authentication types
+    enum auth-type {
+        none,
+        basic,
+        bearer,
+        api-key,
+        oauth,
+        custom,
+    }
+    
+    /// Create a proxy with configuration
+    create-proxy: func(config: proxy-config) -> future<result<proxy-handle, error>>;
+    
+    /// Add a backend server to the proxy
+    add-backend: func(
+        proxy: borrow<proxy-handle>,
+        server: mcp-server
+    ) -> future<result<_, error>>;
+    
+    /// Remove a backend server from the proxy
+    remove-backend: func(
+        proxy: borrow<proxy-handle>,
+        server: mcp-server
+    ) -> future<result<_, error>>;
+    
+    /// Handle proxy requests
+    handle-request: func(
+        proxy: borrow<proxy-handle>,
+        request: list<u8>
+    ) -> future<result<list<u8>, error>>;
+    
+    /// Proxy handle resource
+    resource proxy-handle {
+        /// Get proxy statistics
+        stats: func() -> proxy-stats;
+        
+        /// Shutdown the proxy
+        shutdown: func() -> future<result<_, error>>;
+    }
+    
+    /// Proxy statistics
+    record proxy-stats {
+        /// Total requests processed
+        total-requests: u64,
+        /// Total responses sent
+        total-responses: u64,
+        /// Total errors encountered
+        total-errors: u64,
+        /// Average response time in milliseconds
+        avg-response-time: u64,
+        /// Active connections
+        active-connections: u32,
+        /// Backend server count
+        backend-count: u32,
+    }
+}
+
+/// Development utilities interface
+///
+/// This interface provides utilities for developing and testing MCP components.
+interface development {
+    use types.{mcp-server, mcp-client, error};
+    
+    /// Create a mock MCP server for testing
+    create-mock-server: func(
+        config: mock-server-config
+    ) -> future<result<mcp-server, error>>;
+    
+    /// Create a mock MCP client for testing
+    create-mock-client: func(
+        config: mock-client-config
+    ) -> future<result<mcp-client, error>>;
+    
+    /// Mock server configuration
+    record mock-server-config {
+        /// Server name
+        name: string,
+        /// Simulated resources
+        resources: list<mock-resource>,
+        /// Simulated tools
+        tools: list<mock-tool>,
+        /// Simulated prompts
+        prompts: list<mock-prompt>,
+        /// Response delay in milliseconds
+        response-delay: u64,
+        /// Error rate (0.0 to 1.0)
+        error-rate: f32,
+    }
+    
+    /// Mock client configuration
+    record mock-client-config {
+        /// Client name
+        name: string,
+        /// Simulated latency in milliseconds
+        latency: u64,
+        /// Connection success rate (0.0 to 1.0)
+        success-rate: f32,
+    }
+    
+    /// Mock resource definition
+    record mock-resource {
+        /// Resource ID
+        id: string,
+        /// Resource content
+        content: list<u8>,
+        /// MIME type
+        mime-type: string,
+    }
+    
+    /// Mock tool definition
+    record mock-tool {
+        /// Tool ID
+        id: string,
+        /// Tool implementation function
+        implementation: string,
+        /// Execution time in milliseconds
+        execution-time: u64,
+    }
+    
+    /// Mock prompt definition
+    record mock-prompt {
+        /// Prompt ID
+        id: string,
+        /// Template content
+        template: string,
+        /// Arguments schema
+        schema: option<string>,
+    }
+    
+    /// Validate MCP message format
+    validate-message: func(message: list<u8>) -> result<_, list<string>>;
+    
+    /// Generate sample MCP messages
+    generate-sample-messages: func() -> list<list<u8>>;
+    
+    /// Performance benchmarking
+    benchmark-server: func(
+        server: mcp-server,
+        config: benchmark-config
+    ) -> future<result<benchmark-results, error>>;
+    
+    /// Benchmark configuration
+    record benchmark-config {
+        /// Number of requests to send
+        request-count: u64,
+        /// Concurrent connections
+        concurrency: u32,
+        /// Request types to test
+        request-types: list<string>,
+        /// Duration in seconds
+        duration: u64,
+    }
+    
+    /// Benchmark results
+    record benchmark-results {
+        /// Total requests processed
+        total-requests: u64,
+        /// Successful requests
+        successful-requests: u64,
+        /// Failed requests
+        failed-requests: u64,
+        /// Average response time in milliseconds
+        avg-response-time: f64,
+        /// Minimum response time in milliseconds
+        min-response-time: u64,
+        /// Maximum response time in milliseconds
+        max-response-time: u64,
+        /// Requests per second
+        requests-per-second: f64,
+        /// Throughput in bytes per second
+        throughput: u64,
+    }
 }
