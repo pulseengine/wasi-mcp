@@ -4,7 +4,7 @@ A proposed [WebAssembly System Interface](https://github.com/WebAssembly/WASI) A
 
 ### Current Phase
 
-Phase 1 - Feature Proposal
+Phase 0 - Pre-Proposal
 
 ### Champions
 
@@ -12,7 +12,7 @@ Phase 1 - Feature Proposal
 
 ### Portability Criteria
 
-TODO before entering Phase 2.
+TODO before entering Phase 1.
 
 **Preview3 Async Requirements:**
 - Components MUST support `future<T>` and `stream<T>` types
