@@ -1,59 +1,245 @@
-// Instructions for filling in this file:
-//
-//  - Delete all these `//` comments, up to the first `///` comment.
-//
-//  - Replace the remaining contents below with [Wit] code describing
-//    `interface`s and/or `world`s, using the same formatting style.
-//
-// If you want to include examples of the API in use, these should be in the
-// README.md at the root of the repository and linked to from this file.
-//
-// [Wit]: https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md
+package wasi:mcp;
 
-/// Short interface description.
+/// Model Context Protocol (MCP) Server Interface
 ///
-/// Explanation for developers using the interface API. It should include an
-/// overview of the API as a whole as well as call out notable items in it,
-/// for example `example-api-type` and `example-api-function`.
-interface example-interface {
-    use wasi:example-api-package/example-dep-interface.{example-dep-type};
+/// This interface enables WebAssembly components to act as MCP servers,
+/// providing tools, resources, and prompts to AI applications. The interface
+/// abstracts the MCP protocol details and provides a simplified API for
+/// component developers.
+///
+/// Key concepts:
+/// - `mcp-server`: Manages server lifecycle and configuration
+/// - `mcp-resource`: Represents data sources (files, databases, APIs)
+/// - `mcp-tool`: Executable functions exposed to AI systems
+/// - `mcp-prompt`: Reusable prompt templates
+interface mcp-server {
+    use wasi:io/streams.{input-stream, output-stream};
+    use wasi:clocks/wall-clock.{datetime};
 
-    /// Short type description
+    /// Unique identifier for MCP server instances
+    type server-handle = u64;
+
+    /// Unique identifier for registered resources
+    type resource-id = string;
+
+    /// Unique identifier for registered tools
+    type tool-id = string;
+
+    /// Unique identifier for registered prompts
+    type prompt-id = string;
+
+    /// MCP protocol errors
     ///
-    /// Explanation for developers using this type. It may be useful to give
-    /// some examples of places in the API where the type is used, such as in
-    /// the arguments and return type of `example-api-function`.
-    ///
-    /// <details>
-    /// <summary>Detailed specification</summary>
-    /// More rigorous specification details for implementers go here, if needed.
-    /// The intention is to keep the developer-oriented docs focused on things that
-    /// most developers will need to be aware of, while putting bulkier descriptions
-    /// of precise behavior here.
-    /// </details>
-    record example-api-type {
-        /// A description of a field.
-        field0: u64,
-        /// A description of another field.
-        field1: string,
+    /// Represents various error conditions that can occur during MCP operations.
+    /// These errors align with the MCP specification error codes.
+    variant mcp-error {
+        /// Invalid request format or parameters
+        invalid-request(string),
+        /// Method not found or not supported
+        method-not-found(string),
+        /// Invalid parameters for the method
+        invalid-params(string),
+        /// Internal server error
+        internal-error(string),
+        /// Resource not found
+        resource-not-found(string),
+        /// Tool not found
+        tool-not-found(string),
+        /// Prompt not found
+        prompt-not-found(string),
+        /// Authentication required
+        unauthorized(string),
+        /// Access forbidden
+        forbidden(string),
     }
 
-    /// Short function description
+    /// MCP Resource representation
     ///
-    /// Explanation for developers using the API. This should describe the
-    /// arguments which in this function are `arg0`, `arg1`, and `arg2`, and the
-    /// return value.
+    /// Resources are data sources that can be read by AI systems. They represent
+    /// files, database tables, API endpoints, or any other structured data.
+    record mcp-resource {
+        /// Unique URI identifying the resource
+        uri: string,
+        /// Human-readable name
+        name: string,
+        /// Description of the resource content
+        description: string,
+        /// MIME type of the resource content
+        mime-type: string,
+        /// Optional metadata
+        metadata: option<string>,
+    }
+
+    /// MCP Tool representation
+    ///
+    /// Tools are executable functions that AI systems can invoke. They represent
+    /// operations like database queries, file operations, or API calls.
+    record mcp-tool {
+        /// Unique identifier for the tool
+        name: string,
+        /// Description of what the tool does
+        description: string,
+        /// JSON schema describing input parameters
+        input-schema: string,
+        /// Optional output schema
+        output-schema: option<string>,
+        /// Optional metadata
+        metadata: option<string>,
+    }
+
+    /// MCP Prompt representation
+    ///
+    /// Prompts are reusable templates that can be used by AI systems. They can
+    /// include placeholders for dynamic content.
+    record mcp-prompt {
+        /// Unique identifier for the prompt
+        name: string,
+        /// Description of the prompt purpose
+        description: string,
+        /// Template content with placeholders
+        template: string,
+        /// JSON schema for template arguments
+        arguments-schema: option<string>,
+        /// Optional metadata
+        metadata: option<string>,
+    }
+
+    /// Server configuration
+    ///
+    /// Configuration options for the MCP server instance.
+    record server-config {
+        /// Server name
+        name: string,
+        /// Server version
+        version: string,
+        /// Server description
+        description: option<string>,
+        /// Supported capabilities
+        capabilities: list<string>,
+        /// Optional metadata
+        metadata: option<string>,
+    }
+
+    /// Create a new MCP server instance
+    ///
+    /// Initializes a new MCP server with the given configuration. The server
+    /// will be ready to register resources, tools, and prompts.
     ///
     /// <details>
     /// <summary>Detailed specification</summary>
-    /// Similar to the details section above, this is meant for more rigorous
-    /// specification details for implementors. This may explain what a compliant
-    /// implementation MUST do, such as never returning an earlier result from a
-    /// later call, for example.
+    /// The implementation MUST create a new server instance with a unique handle.
+    /// The server MUST be initialized with the provided configuration and be
+    /// ready to handle MCP protocol messages.
     /// </details>
-    example-api-function: func(
-        arg0: example-api-type,
-        arg1: string,
-        arg2: example-dep-type,
-    ) -> result<example-api-type>;
+    create-server: func(config: server-config) -> result<server-handle, mcp-error>;
+
+    /// Register a resource with the server
+    ///
+    /// Registers a new resource that can be accessed by AI systems. The resource
+    /// will be available for listing and reading through the MCP protocol.
+    register-resource: func(
+        server: server-handle,
+        resource: mcp-resource
+    ) -> result<resource-id, mcp-error>;
+
+    /// Register a tool with the server
+    ///
+    /// Registers a new tool that can be invoked by AI systems. The tool will
+    /// be available for listing and execution through the MCP protocol.
+    register-tool: func(
+        server: server-handle,
+        tool: mcp-tool
+    ) -> result<tool-id, mcp-error>;
+
+    /// Register a prompt with the server
+    ///
+    /// Registers a new prompt template that can be used by AI systems. The
+    /// prompt will be available for listing and retrieval through the MCP protocol.
+    register-prompt: func(
+        server: server-handle,
+        prompt: mcp-prompt
+    ) -> result<prompt-id, mcp-error>;
+
+    /// Handle MCP protocol message
+    ///
+    /// Processes an incoming MCP protocol message and returns the appropriate
+    /// response. This function handles the core MCP protocol logic.
+    ///
+    /// <details>
+    /// <summary>Detailed specification</summary>
+    /// The implementation MUST parse the incoming message according to the MCP
+    /// specification and generate appropriate responses. This includes handling
+    /// requests for listing resources, tools, and prompts, as well as executing
+    /// tools and reading resources.
+    /// </details>
+    handle-message: func(
+        server: server-handle,
+        message: list<u8>
+    ) -> result<list<u8>, mcp-error>;
+
+    /// Destroy a server instance
+    ///
+    /// Cleans up and destroys a server instance, releasing all associated
+    /// resources.
+    destroy-server: func(server: server-handle) -> result<_, mcp-error>;
+}
+
+/// MCP Resource Provider Interface
+///
+/// This interface is implemented by components that provide resources to the
+/// MCP server. Resources can be files, database records, API responses, or
+/// any other structured data.
+interface mcp-resource-provider {
+    use mcp-server.{resource-id, mcp-error};
+
+    /// Read resource content
+    ///
+    /// Retrieves the content of a resource by its ID. The content is returned
+    /// as raw bytes that should be interpreted according to the resource's
+    /// MIME type.
+    read-resource: func(resource: resource-id) -> result<list<u8>, mcp-error>;
+
+    /// List available resources
+    ///
+    /// Returns a list of all resources that this provider can serve. This is
+    /// called when the MCP client requests a list of available resources.
+    list-resources: func() -> result<list<resource-id>, mcp-error>;
+
+    /// Check if resource exists
+    ///
+    /// Checks whether a resource with the given ID exists and is accessible.
+    resource-exists: func(resource: resource-id) -> result<bool, mcp-error>;
+}
+
+/// MCP Tool Executor Interface
+///
+/// This interface is implemented by components that provide executable tools
+/// to the MCP server. Tools can perform database queries, file operations,
+/// API calls, or any other operations.
+interface mcp-tool-executor {
+    use mcp-server.{tool-id, mcp-error};
+
+    /// Execute a tool
+    ///
+    /// Executes a tool with the given arguments and returns the result. The
+    /// arguments are provided as JSON bytes according to the tool's input schema.
+    execute-tool: func(
+        tool: tool-id,
+        arguments: list<u8>
+    ) -> result<list<u8>, mcp-error>;
+
+    /// List available tools
+    ///
+    /// Returns a list of all tools that this executor can handle. This is
+    /// called when the MCP client requests a list of available tools.
+    list-tools: func() -> result<list<tool-id>, mcp-error>;
+
+    /// Validate tool arguments
+    ///
+    /// Validates that the provided arguments are valid for the given tool
+    /// according to its input schema.
+    validate-arguments: func(
+        tool: tool-id,
+        arguments: list<u8>
+    ) -> result<bool, mcp-error>;
 }
