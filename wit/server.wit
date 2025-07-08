@@ -1,0 +1,330 @@
+package wasi:mcp@0.1.0;
+
+/// MCP Server interface for implementing MCP servers
+///
+/// This interface defines the server-side operations for the Model Context Protocol.
+/// It provides async operations for resource management, tool execution, and
+/// prompt handling, following WASI Preview3 conventions.
+interface server {
+    use types.{
+        mcp-server, mcp-resource, mcp-tool, mcp-prompt, error,
+        resource-id, tool-id, prompt-id, server-config, server-info,
+        mcp-resource-config, mcp-tool-config, mcp-prompt-config,
+        resource-info, tool-info, prompt-info
+    };
+    use wasi:io/poll@0.2.0.{pollable};
+    use wasi:clocks/wall-clock@0.2.0.{datetime};
+
+    /// Server management operations
+    ///
+    /// These functions provide high-level server lifecycle management
+    /// and configuration operations.
+
+    /// Create a new MCP server instance
+    ///
+    /// This async operation initializes a new MCP server with the provided
+    /// configuration. The server will be ready to accept registrations and
+    /// handle protocol messages.
+    create-server: func(config: server-config) -> future<result<mcp-server, error>>;
+
+    /// Get server information
+    ///
+    /// Returns current server status and configuration information.
+    get-server-info: func(server: borrow<mcp-server>) -> server-info;
+
+    /// Shutdown server gracefully
+    ///
+    /// This async operation ensures all pending operations complete before
+    /// shutting down the server. It's the recommended way to stop a server.
+    shutdown-server: func(server: mcp-server) -> future<result<_, error>>;
+
+    /// Resource management operations
+    ///
+    /// These functions handle the registration and management of resources
+    /// that can be accessed by AI systems through the MCP protocol.
+
+    /// Register a new resource with the server
+    ///
+    /// This async operation registers a resource and returns its unique ID.
+    /// The resource will be available for listing and reading by clients.
+    register-resource: func(
+        server: borrow<mcp-server>,
+        config: mcp-resource-config
+    ) -> future<result<resource-id, error>>;
+
+    /// Unregister a resource from the server
+    ///
+    /// This async operation removes a resource from the server. Any subsequent
+    /// attempts to access the resource will fail.
+    unregister-resource: func(
+        server: borrow<mcp-server>,
+        resource-id: resource-id
+    ) -> future<result<_, error>>;
+
+    /// List all registered resources
+    ///
+    /// This async operation returns a list of all resources currently
+    /// registered with the server.
+    list-resources: func(
+        server: borrow<mcp-server>
+    ) -> future<result<list<resource-info>, error>>;
+
+    /// Get a specific resource by ID
+    ///
+    /// This async operation retrieves a resource handle for the given ID.
+    /// The resource can then be used for reading and monitoring.
+    get-resource: func(
+        server: borrow<mcp-server>,
+        resource-id: resource-id
+    ) -> future<result<mcp-resource, error>>;
+
+    /// Tool management operations
+    ///
+    /// These functions handle the registration and management of tools
+    /// that can be executed by AI systems through the MCP protocol.
+
+    /// Register a new tool with the server
+    ///
+    /// This async operation registers a tool and returns its unique ID.
+    /// The tool will be available for listing and execution by clients.
+    register-tool: func(
+        server: borrow<mcp-server>,
+        config: mcp-tool-config
+    ) -> future<result<tool-id, error>>;
+
+    /// Unregister a tool from the server
+    ///
+    /// This async operation removes a tool from the server. Any subsequent
+    /// attempts to execute the tool will fail.
+    unregister-tool: func(
+        server: borrow<mcp-server>,
+        tool-id: tool-id
+    ) -> future<result<_, error>>;
+
+    /// List all registered tools
+    ///
+    /// This async operation returns a list of all tools currently
+    /// registered with the server.
+    list-tools: func(
+        server: borrow<mcp-server>
+    ) -> future<result<list<tool-info>, error>>;
+
+    /// Get a specific tool by ID
+    ///
+    /// This async operation retrieves a tool handle for the given ID.
+    /// The tool can then be used for execution and validation.
+    get-tool: func(
+        server: borrow<mcp-server>,
+        tool-id: tool-id
+    ) -> future<result<mcp-tool, error>>;
+
+    /// Prompt management operations
+    ///
+    /// These functions handle the registration and management of prompts
+    /// that can be used by AI systems through the MCP protocol.
+
+    /// Register a new prompt with the server
+    ///
+    /// This async operation registers a prompt and returns its unique ID.
+    /// The prompt will be available for listing and rendering by clients.
+    register-prompt: func(
+        server: borrow<mcp-server>,
+        config: mcp-prompt-config
+    ) -> future<result<prompt-id, error>>;
+
+    /// Unregister a prompt from the server
+    ///
+    /// This async operation removes a prompt from the server. Any subsequent
+    /// attempts to render the prompt will fail.
+    unregister-prompt: func(
+        server: borrow<mcp-server>,
+        prompt-id: prompt-id
+    ) -> future<result<_, error>>;
+
+    /// List all registered prompts
+    ///
+    /// This async operation returns a list of all prompts currently
+    /// registered with the server.
+    list-prompts: func(
+        server: borrow<mcp-server>
+    ) -> future<result<list<prompt-info>, error>>;
+
+    /// Get a specific prompt by ID
+    ///
+    /// This async operation retrieves a prompt handle for the given ID.
+    /// The prompt can then be used for rendering and template access.
+    get-prompt: func(
+        server: borrow<mcp-server>,
+        prompt-id: prompt-id
+    ) -> future<result<mcp-prompt, error>>;
+
+    /// Protocol message handling
+    ///
+    /// These functions handle the core MCP protocol communication,
+    /// processing JSON-RPC messages and returning appropriate responses.
+
+    /// Handle an incoming MCP protocol message
+    ///
+    /// This is the core async operation that processes MCP JSON-RPC messages
+    /// according to the MCP specification. It handles all standard MCP methods
+    /// including resource listing, tool execution, and prompt rendering.
+    handle-message: func(
+        server: borrow<mcp-server>,
+        message: list<u8>
+    ) -> future<result<list<u8>, error>>;
+
+    /// Handle multiple messages in batch
+    ///
+    /// This async operation processes multiple MCP messages efficiently,
+    /// returning responses in the same order as the input messages.
+    handle-batch: func(
+        server: borrow<mcp-server>,
+        messages: list<list<u8>>
+    ) -> future<result<list<list<u8>>, error>>;
+
+    /// Event subscription and monitoring
+    ///
+    /// These functions provide mechanisms for monitoring server events
+    /// and state changes, enabling reactive programming patterns.
+
+    /// Subscribe to server events
+    ///
+    /// Returns a pollable that signals when server events occur, such as
+    /// resource registration, tool execution, or configuration changes.
+    subscribe-server-events: func(
+        server: borrow<mcp-server>
+    ) -> pollable;
+
+    /// Subscribe to resource events
+    ///
+    /// Returns a pollable that signals when resource-related events occur,
+    /// such as resource content changes or access events.
+    subscribe-resource-events: func(
+        server: borrow<mcp-server>,
+        resource-id: resource-id
+    ) -> result<pollable, error>;
+
+    /// Subscribe to tool events
+    ///
+    /// Returns a pollable that signals when tool-related events occur,
+    /// such as tool execution start, progress, or completion.
+    subscribe-tool-events: func(
+        server: borrow<mcp-server>,
+        tool-id: tool-id
+    ) -> result<pollable, error>;
+
+    /// Configuration and capabilities
+    ///
+    /// These functions handle server configuration updates and capability
+    /// queries, allowing dynamic server behavior modification.
+
+    /// Update server configuration
+    ///
+    /// This async operation updates the server configuration. Some changes
+    /// may require server restart to take effect.
+    update-config: func(
+        server: borrow<mcp-server>,
+        config: server-config
+    ) -> future<result<_, error>>;
+
+    /// Get server capabilities
+    ///
+    /// Returns the current server capabilities, indicating what features
+    /// and operations are supported by this server instance.
+    get-capabilities: func(
+        server: borrow<mcp-server>
+    ) -> server-capabilities;
+
+    /// Check if server supports a specific capability
+    ///
+    /// This function checks whether the server supports a particular
+    /// capability or feature.
+    supports-capability: func(
+        server: borrow<mcp-server>,
+        capability: string
+    ) -> bool;
+
+    /// Logging and debugging
+    ///
+    /// These functions provide logging and debugging capabilities for
+    /// server operations and troubleshooting.
+
+    /// Log a message with the specified level
+    ///
+    /// This async operation logs a message through the server's logging
+    /// system, if logging is enabled in the server capabilities.
+    log: func(
+        server: borrow<mcp-server>,
+        level: log-level,
+        message: string
+    ) -> future<result<_, error>>;
+
+    /// Set log level for the server
+    ///
+    /// This function configures the minimum log level that will be processed
+    /// by the server's logging system.
+    set-log-level: func(
+        server: borrow<mcp-server>,
+        level: log-level
+    ) -> result<_, error>;
+
+    /// Get current log level
+    ///
+    /// Returns the current minimum log level configured for the server.
+    get-log-level: func(
+        server: borrow<mcp-server>
+    ) -> log-level;
+
+    /// Performance and metrics
+    ///
+    /// These functions provide performance monitoring and metrics collection
+    /// for server operations and resource usage.
+
+    /// Get server performance metrics
+    ///
+    /// This async operation returns performance metrics for the server,
+    /// including operation counts, timing information, and resource usage.
+    get-metrics: func(
+        server: borrow<mcp-server>
+    ) -> future<result<server-metrics, error>>;
+
+    /// Reset performance metrics
+    ///
+    /// This function resets all performance metrics to their initial values.
+    reset-metrics: func(
+        server: borrow<mcp-server>
+    ) -> result<_, error>;
+
+    /// Server metrics data structure
+    record server-metrics {
+        /// Total number of messages processed
+        messages-processed: u64,
+        /// Total number of resources accessed
+        resources-accessed: u64,
+        /// Total number of tools executed
+        tools-executed: u64,
+        /// Total number of prompts rendered
+        prompts-rendered: u64,
+        /// Average message processing time in milliseconds
+        avg-message-time: u64,
+        /// Server uptime in seconds
+        uptime: u64,
+        /// Memory usage in bytes
+        memory-usage: u64,
+        /// Number of active connections
+        active-connections: u32,
+        /// Error count by type
+        error-counts: list<error-count>,
+    }
+
+    /// Error count for metrics
+    record error-count {
+        /// Error type
+        error-type: string,
+        /// Number of occurrences
+        count: u64,
+    }
+
+    /// Import server capabilities from types
+    use types.{server-capabilities, log-level};
+}
