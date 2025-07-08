@@ -1,0 +1,369 @@
+package wasi:mcp@0.1.0;
+
+/// MCP Client interface for consuming MCP services
+///
+/// This interface defines the client-side operations for the Model Context Protocol.
+/// It provides async operations for connecting to MCP servers, discovering resources,
+/// executing tools, and rendering prompts, following WASI Preview3 conventions.
+interface client {
+    use types.{
+        mcp-server, mcp-resource, mcp-tool, mcp-prompt, error,
+        resource-id, tool-id, prompt-id, server-info,
+        resource-info, tool-info, prompt-info
+    };
+    use wasi:io/poll@0.2.0.{pollable};
+    use wasi:clocks/wall-clock@0.2.0.{datetime};
+
+    /// MCP Client resource
+    ///
+    /// Represents a client connection to an MCP server. This resource manages
+    /// the connection lifecycle and provides async operations for interacting
+    /// with the remote server.
+    resource mcp-client {
+        /// Connect to an MCP server
+        ///
+        /// This async operation establishes a connection to an MCP server
+        /// and performs the initial handshake according to the MCP protocol.
+        connect: static func(server: mcp-server) -> future<result<mcp-client, error>>;
+
+        /// Get server information
+        ///
+        /// Returns information about the connected server, including its
+        /// capabilities and current status.
+        server-info: func() -> future<result<server-info, error>>;
+
+        /// Disconnect from the server
+        ///
+        /// This async operation gracefully closes the connection to the server.
+        disconnect: func() -> future<result<_, error>>;
+
+        /// Check if the connection is active
+        is-connected: func() -> bool;
+
+        /// Subscribe to connection events
+        ///
+        /// Returns a pollable that signals when connection events occur,
+        /// such as disconnection or server status changes.
+        subscribe: func() -> pollable;
+    }
+
+    /// Connection management operations
+    ///
+    /// These functions handle the establishment and management of connections
+    /// to MCP servers.
+
+    /// Connect to an MCP server
+    ///
+    /// This async operation creates a new client connection to the specified
+    /// MCP server and performs the initial protocol handshake.
+    connect-to-server: func(server: mcp-server) -> future<result<mcp-client, error>>;
+
+    /// Reconnect to a server
+    ///
+    /// This async operation attempts to reconnect to a server after a
+    /// connection failure, using the same configuration as the original connection.
+    reconnect: func(client: borrow<mcp-client>) -> future<result<_, error>>;
+
+    /// Resource discovery and access
+    ///
+    /// These functions provide operations for discovering and accessing
+    /// resources available on the connected MCP server.
+
+    /// List available resources
+    ///
+    /// This async operation requests a list of all resources available
+    /// on the connected MCP server.
+    list-resources: func(
+        client: borrow<mcp-client>
+    ) -> future<result<list<resource-info>, error>>;
+
+    /// Get a specific resource by ID
+    ///
+    /// This async operation retrieves a resource handle for the given ID
+    /// from the connected server.
+    get-resource: func(
+        client: borrow<mcp-client>,
+        resource-id: resource-id
+    ) -> future<result<mcp-resource, error>>;
+
+    /// Read resource content
+    ///
+    /// This async operation reads the content of a specific resource
+    /// from the connected server.
+    read-resource: func(
+        client: borrow<mcp-client>,
+        resource-id: resource-id
+    ) -> future<result<list<u8>, error>>;
+
+    /// Check if a resource exists
+    ///
+    /// This async operation checks whether a resource with the given ID
+    /// exists on the connected server.
+    resource-exists: func(
+        client: borrow<mcp-client>,
+        resource-id: resource-id
+    ) -> future<result<bool, error>>;
+
+    /// Subscribe to resource changes
+    ///
+    /// This async operation subscribes to changes for a specific resource.
+    /// Returns a pollable that signals when the resource content changes.
+    subscribe-resource: func(
+        client: borrow<mcp-client>,
+        resource-id: resource-id
+    ) -> future<result<pollable, error>>;
+
+    /// Tool discovery and execution
+    ///
+    /// These functions provide operations for discovering and executing
+    /// tools available on the connected MCP server.
+
+    /// List available tools
+    ///
+    /// This async operation requests a list of all tools available
+    /// on the connected MCP server.
+    list-tools: func(
+        client: borrow<mcp-client>
+    ) -> future<result<list<tool-info>, error>>;
+
+    /// Get a specific tool by ID
+    ///
+    /// This async operation retrieves a tool handle for the given ID
+    /// from the connected server.
+    get-tool: func(
+        client: borrow<mcp-client>,
+        tool-id: tool-id
+    ) -> future<result<mcp-tool, error>>;
+
+    /// Execute a tool
+    ///
+    /// This async operation executes a tool on the connected server with
+    /// the provided arguments and returns the result.
+    execute-tool: func(
+        client: borrow<mcp-client>,
+        tool-id: tool-id,
+        arguments: list<u8>
+    ) -> future<result<list<u8>, error>>;
+
+    /// Validate tool arguments
+    ///
+    /// This async operation validates tool arguments against the tool's
+    /// schema without executing the tool.
+    validate-tool-arguments: func(
+        client: borrow<mcp-client>,
+        tool-id: tool-id,
+        arguments: list<u8>
+    ) -> future<result<bool, error>>;
+
+    /// Subscribe to tool execution events
+    ///
+    /// This async operation subscribes to execution events for a specific tool.
+    /// Returns a pollable that signals when tool execution events occur.
+    subscribe-tool: func(
+        client: borrow<mcp-client>,
+        tool-id: tool-id
+    ) -> future<result<pollable, error>>;
+
+    /// Prompt discovery and rendering
+    ///
+    /// These functions provide operations for discovering and rendering
+    /// prompts available on the connected MCP server.
+
+    /// List available prompts
+    ///
+    /// This async operation requests a list of all prompts available
+    /// on the connected MCP server.
+    list-prompts: func(
+        client: borrow<mcp-client>
+    ) -> future<result<list<prompt-info>, error>>;
+
+    /// Get a specific prompt by ID
+    ///
+    /// This async operation retrieves a prompt handle for the given ID
+    /// from the connected server.
+    get-prompt: func(
+        client: borrow<mcp-client>,
+        prompt-id: prompt-id
+    ) -> future<result<mcp-prompt, error>>;
+
+    /// Render a prompt
+    ///
+    /// This async operation renders a prompt template with the provided
+    /// arguments and returns the final prompt text.
+    render-prompt: func(
+        client: borrow<mcp-client>,
+        prompt-id: prompt-id,
+        arguments: option<list<u8>>
+    ) -> future<result<string, error>>;
+
+    /// Get prompt template
+    ///
+    /// This async operation retrieves the raw template content of a prompt
+    /// without rendering it.
+    get-prompt-template: func(
+        client: borrow<mcp-client>,
+        prompt-id: prompt-id
+    ) -> future<result<string, error>>;
+
+    /// Protocol communication
+    ///
+    /// These functions provide low-level protocol communication operations
+    /// for advanced use cases and custom protocol extensions.
+
+    /// Send a raw MCP message
+    ///
+    /// This async operation sends a raw MCP JSON-RPC message to the server
+    /// and returns the response. This is useful for protocol extensions
+    /// and custom operations.
+    send-message: func(
+        client: borrow<mcp-client>,
+        message: list<u8>
+    ) -> future<result<list<u8>, error>>;
+
+    /// Send multiple messages in batch
+    ///
+    /// This async operation sends multiple MCP messages efficiently and
+    /// returns responses in the same order as the input messages.
+    send-batch: func(
+        client: borrow<mcp-client>,
+        messages: list<list<u8>>
+    ) -> future<result<list<list<u8>>, error>>;
+
+    /// Subscribe to raw protocol messages
+    ///
+    /// This function subscribes to raw protocol messages from the server.
+    /// Returns a pollable that signals when messages are received.
+    subscribe-messages: func(
+        client: borrow<mcp-client>
+    ) -> pollable;
+
+    /// Connection monitoring and health
+    ///
+    /// These functions provide operations for monitoring connection health
+    /// and handling connection-related events.
+
+    /// Ping the server
+    ///
+    /// This async operation sends a ping message to the server to check
+    /// connection health and measure round-trip time.
+    ping: func(
+        client: borrow<mcp-client>
+    ) -> future<result<ping-result, error>>;
+
+    /// Get connection statistics
+    ///
+    /// This function returns statistics about the current connection,
+    /// including message counts, timing information, and error rates.
+    get-connection-stats: func(
+        client: borrow<mcp-client>
+    ) -> connection-stats;
+
+    /// Reset connection statistics
+    ///
+    /// This function resets all connection statistics to their initial values.
+    reset-connection-stats: func(
+        client: borrow<mcp-client>
+    ) -> result<_, error>;
+
+    /// Set connection timeout
+    ///
+    /// This function configures the timeout for connection operations.
+    /// Operations that exceed this timeout will fail with a timeout error.
+    set-timeout: func(
+        client: borrow<mcp-client>,
+        timeout-ms: u64
+    ) -> result<_, error>;
+
+    /// Get current timeout setting
+    ///
+    /// Returns the current timeout setting for connection operations.
+    get-timeout: func(
+        client: borrow<mcp-client>
+    ) -> u64;
+
+    /// Data structures for client operations
+
+    /// Ping result containing timing information
+    record ping-result {
+        /// Round-trip time in milliseconds
+        round-trip-time: u64,
+        /// Server timestamp when ping was processed
+        server-timestamp: datetime,
+        /// Additional server information
+        server-info: option<string>,
+    }
+
+    /// Connection statistics
+    record connection-stats {
+        /// Total number of messages sent
+        messages-sent: u64,
+        /// Total number of messages received
+        messages-received: u64,
+        /// Total number of errors encountered
+        errors: u64,
+        /// Average message round-trip time in milliseconds
+        avg-round-trip-time: u64,
+        /// Connection uptime in seconds
+        connection-uptime: u64,
+        /// Number of reconnection attempts
+        reconnection-attempts: u32,
+        /// Last successful ping time
+        last-ping: option<datetime>,
+        /// Error counts by type
+        error-counts: list<error-count>,
+    }
+
+    /// Error count for connection statistics
+    record error-count {
+        /// Error type
+        error-type: string,
+        /// Number of occurrences
+        count: u64,
+    }
+
+    /// Client configuration
+    record client-config {
+        /// Connection timeout in milliseconds
+        timeout: u64,
+        /// Maximum number of retry attempts
+        max-retries: u32,
+        /// Retry delay in milliseconds
+        retry-delay: u64,
+        /// Enable automatic reconnection
+        auto-reconnect: bool,
+        /// Heartbeat interval in seconds
+        heartbeat-interval: u64,
+        /// Additional client metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Advanced client operations
+    ///
+    /// These functions provide advanced client capabilities for complex
+    /// use cases and integration scenarios.
+
+    /// Create a client with custom configuration
+    ///
+    /// This async operation creates a new client with the specified
+    /// configuration options.
+    create-client: func(
+        server: mcp-server,
+        config: client-config
+    ) -> future<result<mcp-client, error>>;
+
+    /// Update client configuration
+    ///
+    /// This async operation updates the client configuration. Some changes
+    /// may require reconnection to take effect.
+    update-client-config: func(
+        client: borrow<mcp-client>,
+        config: client-config
+    ) -> future<result<_, error>>;
+
+    /// Get current client configuration
+    ///
+    /// Returns the current client configuration settings.
+    get-client-config: func(
+        client: borrow<mcp-client>
+    ) -> client-config;
+}
