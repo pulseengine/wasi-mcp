@@ -1,0 +1,418 @@
+package wasi:mcp@0.1.0;
+
+/// MCP Streaming interface for large data operations
+///
+/// This interface defines streaming operations for the Model Context Protocol,
+/// enabling efficient handling of large resources, long-running tool executions,
+/// and real-time data feeds. It follows WASI Preview3 streaming conventions.
+interface streaming {
+    use types.{
+        mcp-resource, mcp-tool, error, resource-id, tool-id
+    };
+    use wasi:io/streams@0.2.0.{input-stream, output-stream};
+    use wasi:io/poll@0.2.0.{pollable};
+    use wasi:clocks/wall-clock@0.2.0.{datetime};
+
+    /// Streaming Resource
+    ///
+    /// A resource that supports streaming operations for large content
+    /// or real-time data feeds.
+    resource streaming-resource {
+        /// Create a streaming resource from a regular resource
+        ///
+        /// This async operation creates a streaming version of a resource
+        /// that can be read incrementally or monitored for changes.
+        create: static func(
+            resource: mcp-resource
+        ) -> future<result<streaming-resource, error>>;
+
+        /// Open an input stream for reading resource content
+        ///
+        /// This async operation opens a stream for reading the resource
+        /// content incrementally, suitable for large files or data sets.
+        open-input-stream: func() -> future<result<input-stream, error>>;
+
+        /// Get the total size of the resource (if known)
+        ///
+        /// Returns the total size in bytes, or none if the size is unknown
+        /// or the resource is a real-time feed.
+        size: func() -> option<u64>;
+
+        /// Check if the resource supports seeking
+        ///
+        /// Returns true if the resource supports seeking to arbitrary
+        /// positions within the content.
+        is-seekable: func() -> bool;
+
+        /// Seek to a specific position in the resource
+        ///
+        /// This async operation seeks to the specified byte offset within
+        /// the resource content. Only supported if is-seekable returns true.
+        seek: func(offset: u64) -> future<result<u64, error>>;
+
+        /// Subscribe to resource changes
+        ///
+        /// Returns a pollable that signals when the resource content changes.
+        /// Useful for monitoring files or real-time data sources.
+        subscribe: func() -> pollable;
+
+        /// Get last modification time
+        ///
+        /// Returns the timestamp when the resource was last modified,
+        /// or none if not applicable.
+        last-modified: func() -> option<datetime>;
+    }
+
+    /// Streaming Tool
+    ///
+    /// A tool that supports streaming operations for long-running executions
+    /// or tools that produce streaming output.
+    resource streaming-tool {
+        /// Create a streaming tool from a regular tool
+        ///
+        /// This async operation creates a streaming version of a tool
+        /// that can handle long-running executions with streaming I/O.
+        create: static func(
+            tool: mcp-tool
+        ) -> future<result<streaming-tool, error>>;
+
+        /// Execute the tool with streaming I/O
+        ///
+        /// This async operation executes the tool with the provided arguments
+        /// and returns streams for input and output, enabling real-time
+        /// interaction with long-running tools.
+        execute-streaming: func(
+            arguments: list<u8>
+        ) -> future<result<streaming-execution, error>>;
+
+        /// Check if the tool supports streaming
+        ///
+        /// Returns true if the tool supports streaming input/output operations.
+        supports-streaming: func() -> bool;
+
+        /// Get estimated execution time
+        ///
+        /// Returns an estimate of how long the tool execution might take,
+        /// or none if unknown.
+        estimated-duration: func() -> option<u64>;
+
+        /// Subscribe to execution events
+        ///
+        /// Returns a pollable that signals when execution events occur,
+        /// such as progress updates or state changes.
+        subscribe: func() -> pollable;
+    }
+
+    /// Streaming Execution
+    ///
+    /// Represents an active streaming tool execution with input/output streams.
+    resource streaming-execution {
+        /// Get the input stream for sending data to the tool
+        ///
+        /// Returns an output stream that can be used to send data to the
+        /// executing tool. Not all tools support input streams.
+        input-stream: func() -> option<output-stream>;
+
+        /// Get the output stream for receiving data from the tool
+        ///
+        /// Returns an input stream that can be used to receive data from
+        /// the executing tool.
+        output-stream: func() -> input-stream;
+
+        /// Get the error stream for receiving error output
+        ///
+        /// Returns an input stream for receiving error messages and
+        /// diagnostic information from the tool.
+        error-stream: func() -> option<input-stream>;
+
+        /// Wait for execution to complete
+        ///
+        /// This async operation waits for the tool execution to complete
+        /// and returns the final result or error.
+        wait: func() -> future<result<execution-result, error>>;
+
+        /// Check if execution is still running
+        ///
+        /// Returns true if the tool execution is still active.
+        is-running: func() -> bool;
+
+        /// Cancel the execution
+        ///
+        /// This async operation attempts to cancel the running tool execution.
+        /// Not all tools support cancellation.
+        cancel: func() -> future<result<_, error>>;
+
+        /// Get execution progress
+        ///
+        /// Returns current progress information if the tool supports it.
+        progress: func() -> option<execution-progress>;
+
+        /// Subscribe to execution events
+        ///
+        /// Returns a pollable that signals when execution events occur.
+        subscribe: func() -> pollable;
+    }
+
+    /// Chunked Resource Reader
+    ///
+    /// A utility resource for reading large resources in chunks with
+    /// efficient memory usage and progress tracking.
+    resource chunked-reader {
+        /// Create a chunked reader for a resource
+        ///
+        /// This async operation creates a reader that can process large
+        /// resources in configurable chunks.
+        create: static func(
+            resource: streaming-resource,
+            chunk-size: u64
+        ) -> future<result<chunked-reader, error>>;
+
+        /// Read the next chunk
+        ///
+        /// This async operation reads the next chunk of data from the resource.
+        /// Returns none when the end of the resource is reached.
+        read-chunk: func() -> future<result<option<list<u8>>, error>>;
+
+        /// Get current read position
+        ///
+        /// Returns the current byte offset within the resource.
+        position: func() -> u64;
+
+        /// Get total bytes read
+        ///
+        /// Returns the total number of bytes read so far.
+        bytes-read: func() -> u64;
+
+        /// Get read progress as percentage
+        ///
+        /// Returns the read progress as a percentage (0-100), or none
+        /// if the total size is unknown.
+        progress-percent: func() -> option<f32>;
+
+        /// Check if end of resource reached
+        ///
+        /// Returns true if there are no more chunks to read.
+        is-end-of-resource: func() -> bool;
+
+        /// Reset reader to beginning
+        ///
+        /// This async operation resets the reader to the beginning of the
+        /// resource. Only supported if the underlying resource is seekable.
+        reset: func() -> future<result<_, error>>;
+
+        /// Subscribe to read events
+        ///
+        /// Returns a pollable that signals when read events occur.
+        subscribe: func() -> pollable;
+    }
+
+    /// Real-time Data Feed
+    ///
+    /// A resource for handling real-time data feeds and continuous data streams.
+    resource data-feed {
+        /// Create a data feed from a streaming resource
+        ///
+        /// This async operation creates a data feed that can handle
+        /// continuous data streams and real-time updates.
+        create: static func(
+            resource: streaming-resource
+        ) -> future<result<data-feed, error>>;
+
+        /// Subscribe to data updates
+        ///
+        /// This async operation subscribes to data updates from the feed.
+        /// Returns a stream of data updates.
+        subscribe-updates: func() -> future<result<stream<data-update>, error>>;
+
+        /// Get latest data
+        ///
+        /// This async operation retrieves the most recent data from the feed.
+        get-latest: func() -> future<result<list<u8>, error>>;
+
+        /// Get feed metadata
+        ///
+        /// Returns metadata about the data feed, including update frequency
+        /// and data format information.
+        metadata: func() -> feed-metadata;
+
+        /// Check if feed is active
+        ///
+        /// Returns true if the feed is actively producing data.
+        is-active: func() -> bool;
+
+        /// Pause the feed
+        ///
+        /// This async operation pauses the data feed, stopping new updates.
+        pause: func() -> future<result<_, error>>;
+
+        /// Resume the feed
+        ///
+        /// This async operation resumes a paused data feed.
+        resume: func() -> future<result<_, error>>;
+
+        /// Close the feed
+        ///
+        /// This async operation closes the data feed and releases resources.
+        close: func() -> future<result<_, error>>;
+    }
+
+    /// Data structures for streaming operations
+
+    /// Execution result for streaming tools
+    record execution-result {
+        /// Exit code (0 for success)
+        exit-code: u32,
+        /// Final output data
+        output: option<list<u8>>,
+        /// Error output data
+        error-output: option<list<u8>>,
+        /// Execution duration in milliseconds
+        duration: u64,
+        /// Additional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Execution progress information
+    record execution-progress {
+        /// Progress percentage (0-100)
+        percent: f32,
+        /// Current step description
+        step: option<string>,
+        /// Estimated time remaining in milliseconds
+        eta: option<u64>,
+        /// Additional progress metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Data update from a real-time feed
+    record data-update {
+        /// Update timestamp
+        timestamp: datetime,
+        /// Update data
+        data: list<u8>,
+        /// Update sequence number
+        sequence: u64,
+        /// Update type
+        update-type: update-type,
+        /// Additional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Type of data update
+    enum update-type {
+        /// Full data replacement
+        full,
+        /// Incremental update
+        incremental,
+        /// Data deletion
+        deletion,
+        /// Metadata update
+        metadata,
+    }
+
+    /// Metadata for data feeds
+    record feed-metadata {
+        /// Feed name
+        name: string,
+        /// Feed description
+        description: string,
+        /// Data format (MIME type)
+        format: string,
+        /// Update frequency in milliseconds
+        update-frequency: option<u64>,
+        /// Expected data size per update
+        expected-size: option<u64>,
+        /// Feed capabilities
+        capabilities: list<string>,
+        /// Additional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Streaming configuration
+    record streaming-config {
+        /// Buffer size for streaming operations
+        buffer-size: u64,
+        /// Chunk size for chunked reading
+        chunk-size: u64,
+        /// Maximum concurrent streams
+        max-concurrent-streams: u32,
+        /// Stream timeout in milliseconds
+        timeout: u64,
+        /// Enable compression
+        compression: bool,
+        /// Additional configuration
+        metadata: option<list<u8>>,
+    }
+
+    /// Streaming utilities and helpers
+    ///
+    /// These functions provide utility operations for common streaming tasks.
+
+    /// Copy data from input stream to output stream
+    ///
+    /// This async operation efficiently copies data from an input stream
+    /// to an output stream with configurable buffer size.
+    copy-stream: func(
+        input: input-stream,
+        output: output-stream,
+        buffer-size: option<u64>
+    ) -> future<result<u64, error>>;
+
+    /// Transform stream data
+    ///
+    /// This async operation applies a transformation function to stream data.
+    /// The transform function is called for each chunk of data.
+    transform-stream: func(
+        input: input-stream,
+        output: output-stream,
+        transform: string  /// JavaScript/WASM function for transformation
+    ) -> future<result<u64, error>>;
+
+    /// Merge multiple input streams
+    ///
+    /// This async operation merges multiple input streams into a single
+    /// output stream with configurable merging strategy.
+    merge-streams: func(
+        inputs: list<input-stream>,
+        output: output-stream,
+        strategy: merge-strategy
+    ) -> future<result<u64, error>>;
+
+    /// Split stream into multiple outputs
+    ///
+    /// This async operation splits a single input stream into multiple
+    /// output streams based on a splitting function.
+    split-stream: func(
+        input: input-stream,
+        outputs: list<output-stream>,
+        splitter: string  /// JavaScript/WASM function for splitting
+    ) -> future<result<u64, error>>;
+
+    /// Stream merging strategies
+    enum merge-strategy {
+        /// Round-robin merging
+        round-robin,
+        /// Timestamp-based merging
+        timestamp,
+        /// Priority-based merging
+        priority,
+        /// Custom merging function
+        custom,
+    }
+
+    /// Create a streaming configuration with defaults
+    ///
+    /// Returns a streaming configuration with sensible default values.
+    default-streaming-config: func() -> streaming-config;
+
+    /// Validate streaming configuration
+    ///
+    /// Validates a streaming configuration and returns any errors found.
+    validate-streaming-config: func(
+        config: streaming-config
+    ) -> result<_, list<string>>;
+
+    /// Types for streaming operations
+    type stream<T> = stream<T>;
+    type future<T> = future<T>;
+}
