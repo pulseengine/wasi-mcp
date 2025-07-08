@@ -1,0 +1,383 @@
+package wasi:mcp@0.1.0;
+
+/// Core types and resources for the Model Context Protocol (MCP)
+///
+/// This interface defines the fundamental types, resources, and error handling
+/// for WASI MCP implementations. It follows WASI Preview3 conventions with
+/// proper resource management and async-aware error handling.
+interface types {
+    use wasi:io/poll@0.2.0.{pollable};
+    use wasi:clocks/wall-clock@0.2.0.{datetime};
+
+    /// Base error resource for MCP operations
+    ///
+    /// All MCP errors can be downcast to this base error type for generic
+    /// error handling, following the WASI error handling pattern.
+    resource error {
+        /// Get the error code for this error
+        code: func() -> error-code;
+        
+        /// Get a human-readable error message
+        message: func() -> string;
+        
+        /// Get debug information about this error
+        to-debug-string: func() -> string;
+    }
+
+    /// MCP error codes aligned with the MCP specification
+    ///
+    /// These error codes correspond to JSON-RPC 2.0 error codes and MCP-specific
+    /// error conditions.
+    enum error-code {
+        /// Invalid request format or structure
+        invalid-request,
+        /// Method not found or not supported
+        method-not-found,
+        /// Invalid parameters for the method
+        invalid-params,
+        /// Internal server error
+        internal-error,
+        /// Resource not found
+        resource-not-found,
+        /// Tool not found
+        tool-not-found,
+        /// Prompt not found
+        prompt-not-found,
+        /// Authentication required
+        unauthorized,
+        /// Access forbidden
+        forbidden,
+        /// Request timeout
+        timeout,
+        /// Too many requests
+        rate-limited,
+        /// Server unavailable
+        unavailable,
+    }
+
+    /// MCP Server resource
+    ///
+    /// Represents an MCP server instance that can handle protocol messages,
+    /// manage resources, tools, and prompts. This resource manages the server
+    /// lifecycle and provides async operations.
+    resource mcp-server {
+        /// Create a new MCP server with the given configuration
+        ///
+        /// This is an async operation that returns a future containing the
+        /// server instance or an error.
+        create: static func(config: server-config) -> future<result<mcp-server, error>>;
+
+        /// Get server information
+        info: func() -> server-info;
+
+        /// Register a resource with this server
+        ///
+        /// Resources are data sources that can be read by AI systems.
+        /// This operation is async and returns a future with the resource ID.
+        register-resource: func(resource: mcp-resource-config) -> future<result<resource-id, error>>;
+
+        /// Register a tool with this server
+        ///
+        /// Tools are executable functions that AI systems can invoke.
+        /// This operation is async and returns a future with the tool ID.
+        register-tool: func(tool: mcp-tool-config) -> future<result<tool-id, error>>;
+
+        /// Register a prompt with this server
+        ///
+        /// Prompts are reusable templates that can be used by AI systems.
+        /// This operation is async and returns a future with the prompt ID.
+        register-prompt: func(prompt: mcp-prompt-config) -> future<result<prompt-id, error>>;
+
+        /// Handle an incoming MCP protocol message
+        ///
+        /// This is the core async operation that processes MCP JSON-RPC messages
+        /// and returns appropriate responses. The operation is fully async to
+        /// support long-running tool executions and resource access.
+        handle-message: func(message: list<u8>) -> future<result<list<u8>, error>>;
+
+        /// Subscribe to server events
+        ///
+        /// Returns a pollable that can be used to wait for server events
+        /// such as resource updates, tool registrations, etc.
+        subscribe: func() -> pollable;
+
+        /// Shutdown the server gracefully
+        ///
+        /// This async operation ensures all pending operations complete
+        /// before shutting down the server.
+        shutdown: func() -> future<result<_, error>>;
+    }
+
+    /// MCP Resource representation
+    ///
+    /// Resources are data sources that can be accessed by AI systems.
+    /// This resource handles the lifecycle and access patterns for MCP resources.
+    resource mcp-resource {
+        /// Get resource metadata
+        info: func() -> resource-info;
+
+        /// Read the resource content
+        ///
+        /// This async operation returns the resource content as bytes.
+        /// For large resources, consider using the streaming interface.
+        read: func() -> future<result<list<u8>, error>>;
+
+        /// Check if the resource has been modified since a given timestamp
+        modified-since: func(timestamp: datetime) -> future<result<bool, error>>;
+
+        /// Subscribe to resource changes
+        ///
+        /// Returns a pollable that signals when the resource content changes.
+        subscribe: func() -> pollable;
+    }
+
+    /// MCP Tool representation
+    ///
+    /// Tools are executable functions that AI systems can invoke.
+    /// This resource manages tool execution and parameter validation.
+    resource mcp-tool {
+        /// Get tool metadata
+        info: func() -> tool-info;
+
+        /// Execute the tool with given arguments
+        ///
+        /// This async operation executes the tool and returns the result.
+        /// Tool execution can be long-running, making async essential.
+        execute: func(arguments: list<u8>) -> future<result<list<u8>, error>>;
+
+        /// Validate tool arguments without executing
+        ///
+        /// This async operation validates arguments against the tool's schema.
+        validate: func(arguments: list<u8>) -> future<result<bool, error>>;
+
+        /// Subscribe to tool execution events
+        ///
+        /// Returns a pollable for monitoring tool execution progress.
+        subscribe: func() -> pollable;
+    }
+
+    /// MCP Prompt representation
+    ///
+    /// Prompts are reusable templates that can be used by AI systems.
+    /// This resource manages prompt templates and argument substitution.
+    resource mcp-prompt {
+        /// Get prompt metadata
+        info: func() -> prompt-info;
+
+        /// Render the prompt with given arguments
+        ///
+        /// This async operation renders the prompt template with provided
+        /// arguments and returns the final prompt text.
+        render: func(arguments: option<list<u8>>) -> future<result<string, error>>;
+
+        /// Get the prompt template without rendering
+        template: func() -> string;
+    }
+
+    /// Unique identifier for resources
+    type resource-id = string;
+
+    /// Unique identifier for tools
+    type tool-id = string;
+
+    /// Unique identifier for prompts
+    type prompt-id = string;
+
+    /// Server configuration for creating MCP servers
+    record server-config {
+        /// Server name
+        name: string,
+        /// Server version
+        version: string,
+        /// Server description
+        description: option<string>,
+        /// Supported MCP protocol version
+        protocol-version: string,
+        /// Server capabilities
+        capabilities: server-capabilities,
+        /// Optional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Server capabilities configuration
+    record server-capabilities {
+        /// Support for listing resources
+        resources: option<resource-capabilities>,
+        /// Support for listing and executing tools
+        tools: option<tool-capabilities>,
+        /// Support for listing and rendering prompts
+        prompts: option<prompt-capabilities>,
+        /// Support for logging
+        logging: option<logging-capabilities>,
+        /// Support for experimental features
+        experimental: option<list<string>>,
+    }
+
+    /// Resource-specific capabilities
+    record resource-capabilities {
+        /// Support for subscribing to resource changes
+        subscribe: bool,
+        /// Support for listing resources
+        list-changed: bool,
+    }
+
+    /// Tool-specific capabilities
+    record tool-capabilities {
+        /// Support for listing tools
+        list-changed: bool,
+    }
+
+    /// Prompt-specific capabilities
+    record prompt-capabilities {
+        /// Support for listing prompts
+        list-changed: bool,
+    }
+
+    /// Logging capabilities
+    record logging-capabilities {
+        /// Supported log levels
+        levels: list<log-level>,
+    }
+
+    /// Log level enumeration
+    enum log-level {
+        debug,
+        info,
+        notice,
+        warning,
+        error,
+        critical,
+        alert,
+        emergency,
+    }
+
+    /// Server information
+    record server-info {
+        /// Server name
+        name: string,
+        /// Server version
+        version: string,
+        /// Server description
+        description: option<string>,
+        /// MCP protocol version
+        protocol-version: string,
+        /// Server capabilities
+        capabilities: server-capabilities,
+        /// Server status
+        status: server-status,
+    }
+
+    /// Server status enumeration
+    enum server-status {
+        /// Server is initializing
+        initializing,
+        /// Server is running and accepting requests
+        running,
+        /// Server is shutting down
+        shutting-down,
+        /// Server has stopped
+        stopped,
+        /// Server encountered an error
+        error,
+    }
+
+    /// Resource configuration for registration
+    record mcp-resource-config {
+        /// Unique URI identifying the resource
+        uri: string,
+        /// Human-readable name
+        name: string,
+        /// Description of the resource content
+        description: string,
+        /// MIME type of the resource content
+        mime-type: string,
+        /// Optional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Resource information
+    record resource-info {
+        /// Resource ID
+        id: resource-id,
+        /// Resource URI
+        uri: string,
+        /// Resource name
+        name: string,
+        /// Resource description
+        description: string,
+        /// Resource MIME type
+        mime-type: string,
+        /// Resource size in bytes (if known)
+        size: option<u64>,
+        /// Last modified timestamp
+        modified: option<datetime>,
+        /// Resource metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Tool configuration for registration
+    record mcp-tool-config {
+        /// Tool name
+        name: string,
+        /// Tool description
+        description: string,
+        /// JSON schema for input parameters
+        input-schema: string,
+        /// Optional JSON schema for output
+        output-schema: option<string>,
+        /// Optional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Tool information
+    record tool-info {
+        /// Tool ID
+        id: tool-id,
+        /// Tool name
+        name: string,
+        /// Tool description
+        description: string,
+        /// Input parameter schema
+        input-schema: string,
+        /// Output schema (if available)
+        output-schema: option<string>,
+        /// Tool metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Prompt configuration for registration
+    record mcp-prompt-config {
+        /// Prompt name
+        name: string,
+        /// Prompt description
+        description: string,
+        /// Prompt template content
+        template: string,
+        /// Optional JSON schema for arguments
+        arguments-schema: option<string>,
+        /// Optional metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Prompt information
+    record prompt-info {
+        /// Prompt ID
+        id: prompt-id,
+        /// Prompt name
+        name: string,
+        /// Prompt description
+        description: string,
+        /// Prompt template
+        template: string,
+        /// Arguments schema (if available)
+        arguments-schema: option<string>,
+        /// Prompt metadata
+        metadata: option<list<u8>>,
+    }
+
+    /// Future type for async operations
+    type future<T> = future<T>;
+
+    /// Stream type for streaming operations
+    type stream<T> = stream<T>;
+}
