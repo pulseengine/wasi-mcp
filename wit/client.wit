@@ -20,11 +20,6 @@ interface client {
     /// the connection lifecycle and provides async operations for interacting
     /// with the remote server.
     resource mcp-client {
-        /// Connect to an MCP server
-        ///
-        /// This async operation establishes a connection to an MCP server
-        /// and performs the initial handshake according to the MCP protocol.
-        connect: static func(server: mcp-server) -> future<result<mcp-client, error>>;
 
         /// Get server information
         ///
@@ -46,6 +41,12 @@ interface client {
         /// such as disconnection or server status changes.
         subscribe: func() -> pollable;
     }
+
+    /// Create an MCP client
+    ///
+    /// This async operation creates a new client instance ready to connect
+    /// to MCP servers.
+    create-mcp-client: func() -> future<result<mcp-client, error>>;
 
     /// Connection management operations
     ///
