@@ -9,6 +9,12 @@ interface types {
     use wasi:io/poll@0.2.0.{pollable};
     use wasi:clocks/wall-clock@0.2.0.{datetime};
 
+    /// Create a new MCP server with the given configuration
+    ///
+    /// This is an async operation that returns a future containing the
+    /// server instance or an error.
+    create-mcp-server: func(config: server-config) -> future<result<mcp-server, error>>;
+
     /// Base error resource for MCP operations
     ///
     /// All MCP errors can be downcast to this base error type for generic
@@ -61,11 +67,6 @@ interface types {
     /// manage resources, tools, and prompts. This resource manages the server
     /// lifecycle and provides async operations.
     resource mcp-server {
-        /// Create a new MCP server with the given configuration
-        ///
-        /// This is an async operation that returns a future containing the
-        /// server instance or an error.
-        create: static func(config: server-config) -> future<result<mcp-server, error>>;
 
         /// Get server information
         info: func() -> server-info;
@@ -74,7 +75,7 @@ interface types {
         ///
         /// Resources are data sources that can be read by AI systems.
         /// This operation is async and returns a future with the resource ID.
-        register-resource: func(resource: mcp-resource-config) -> future<result<resource-id, error>>;
+        register-resource: func(resource-config: mcp-resource-config) -> future<result<resource-id, error>>;
 
         /// Register a tool with this server
         ///
@@ -172,6 +173,33 @@ interface types {
 
         /// Get the prompt template without rendering
         template: func() -> string;
+    }
+
+    /// MCP Client representation
+    ///
+    /// Represents a client connection to an MCP server. This resource manages
+    /// the connection lifecycle and provides async operations for interacting
+    /// with the remote server.
+    resource mcp-client {
+        /// Get server information
+        ///
+        /// Returns information about the connected server, including its
+        /// capabilities and current status.
+        server-info: func() -> future<result<server-info, error>>;
+
+        /// Disconnect from the server
+        ///
+        /// This async operation gracefully closes the connection to the server.
+        disconnect: func() -> future<result<_, error>>;
+
+        /// Check if the connection is active
+        is-connected: func() -> bool;
+
+        /// Subscribe to connection events
+        ///
+        /// Returns a pollable that signals when connection events occur,
+        /// such as disconnection or server status changes.
+        subscribe: func() -> pollable;
     }
 
     /// Unique identifier for resources
@@ -375,9 +403,4 @@ interface types {
         metadata: option<list<u8>>,
     }
 
-    /// Future type for async operations
-    type future<T> = future<T>;
-
-    /// Stream type for streaming operations
-    type stream<T> = stream<T>;
 }
