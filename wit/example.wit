@@ -1,4 +1,4 @@
-package wasi:mcp;
+package wasi:mcp@0.1.0;
 
 /// Model Context Protocol (MCP) Server Interface
 ///
@@ -139,7 +139,7 @@ interface mcp-server {
     /// will be available for listing and reading through the MCP protocol.
     register-resource: func(
         server: server-handle,
-        resource: mcp-resource
+        resource-config: mcp-resource
     ) -> result<resource-id, mcp-error>;
 
     /// Register a tool with the server
@@ -197,7 +197,7 @@ interface mcp-resource-provider {
     /// Retrieves the content of a resource by its ID. The content is returned
     /// as raw bytes that should be interpreted according to the resource's
     /// MIME type.
-    read-resource: func(resource: resource-id) -> result<list<u8>, mcp-error>;
+    read-resource: func(resource-id: resource-id) -> result<list<u8>, mcp-error>;
 
     /// List available resources
     ///
@@ -208,7 +208,7 @@ interface mcp-resource-provider {
     /// Check if resource exists
     ///
     /// Checks whether a resource with the given ID exists and is accessible.
-    resource-exists: func(resource: resource-id) -> result<bool, mcp-error>;
+    resource-exists: func(resource-id: resource-id) -> result<bool, mcp-error>;
 }
 
 /// MCP Tool Executor Interface
