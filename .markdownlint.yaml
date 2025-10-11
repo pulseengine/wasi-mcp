@@ -1,0 +1,45 @@
+# Markdownlint configuration for WASI MCP
+# See: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# Default state for all rules
+default: true
+
+# MD013/line-length - Line length
+MD013:
+  # Number of characters
+  line_length: 120
+  # Number of characters for headings
+  heading_line_length: 120
+  # Number of characters for code blocks
+  code_block_line_length: 120
+  # Include code blocks
+  code_blocks: true
+  # Include tables
+  tables: true
+  # Include headings
+  headings: true
+  # Strict length checking
+  strict: false
+  # Stern length checking
+  stern: false
+
+# MD033/no-inline-html - Inline HTML
+MD033:
+  # Allowed elements
+  allowed_elements: []
+
+# MD041/first-line-heading - First line in a file should be a top-level heading
+MD041: false
+
+# MD046/code-block-style - Code block style
+MD046:
+  # Block style
+  style: fenced
+
+# MD049/emphasis-style - Emphasis style
+MD049:
+  style: asterisk
+
+# MD050/strong-style - Strong style
+MD050:
+  style: asterisk
