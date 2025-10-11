@@ -11,4 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: WebAssembly/wit-abi-up-to-date@v19
+    - uses: WebAssembly/wit-abi-up-to-date@v20
+
+  validate-wit:
+    name: Validate WIT Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.8.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Validate Preview3 WIT
+        run: bazel build //:mcp
+
+      - name: Validate Preview2 WIT
+        run: bazel build //:mcp_preview2
