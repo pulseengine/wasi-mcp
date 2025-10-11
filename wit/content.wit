@@ -136,4 +136,41 @@ interface content {
         /// Generic annotations
         base: option<annotations>,
     }
+
+    /// Log level for MCP logging protocol
+    @since(version = 0.1.0)
+    enum log-level {
+        /// Debug-level messages
+        debug,
+        /// Informational messages
+        info,
+        /// Warning messages
+        warning,
+        /// Error messages
+        error,
+        /// Critical error messages
+        critical,
+    }
+
+    /// Message role in prompts
+    @since(version = 0.1.0)
+    enum message-role {
+        /// System message (instructions)
+        system,
+        /// User message (input)
+        user,
+        /// Assistant message (response)
+        assistant,
+    }
+
+    /// Prompt message
+    ///
+    /// Represents a single message in a prompt template.
+    @since(version = 0.1.0)
+    record prompt-message {
+        /// Role of this message
+        role: message-role,
+        /// Message content
+        content: content-block,
+    }
 }

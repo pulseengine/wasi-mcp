@@ -2,252 +2,156 @@ package wasi:mcp@0.1.0;
 
 /// MCP Client Interface
 ///
-/// Defines client-side operations for consuming MCP servers.
-/// Mirrors the server interface but from the client perspective.
-/// Following MCP 2025-06-18 specification.
+/// Components import this interface to act as MCP clients, connecting to and
+/// consuming MCP servers.
+///
+/// This interface is kept simple for MVP. Components using this can:
+/// - Connect to MCP servers (via host-provided transport)
+/// - Make MCP protocol requests
+/// - Receive responses
+///
+/// The host handles:
+/// - Transport layer (stdio, HTTP, WebSocket)
+/// - JSON-RPC protocol encoding/decoding
+/// - Connection management
+/// - Error handling
+///
+/// Note: This is a simplified version for the redesign. A full client interface
+/// can be developed in a future iteration. For now, components that need MCP
+/// client functionality can use native MCP client libraries.
 @since(version = 0.1.0)
 interface client {
-    use types.{
-        error, cursor, request-meta, paginated-request,
-        initialize-params, initialize-result,
-        resource-info, resource-template, resource-contents,
-        tool, call-tool-result,
-        prompt, get-prompt-result,
-        implementation,
-    };
-    use capabilities.{client-capabilities, log-level};
-    use notifications.{notification};
-    use server.{
-        list-resources-result, list-resource-templates-result, read-resource-result,
-        list-tools-result, list-prompts-result,
-    };
-    use wasi:io/poll@0.2.3.{pollable};
+    use types.{error};
+    use content.{content-block, prompt-message};
 
-    // ============================================================================
-    // Client Resource
-    // ============================================================================
-
-    /// MCP Client resource
-    ///
-    /// Represents a client connection to an MCP server. Provides typed
-    /// operations for calling all MCP server methods.
-    @since(version = 0.1.0)
-    resource mcp-client {
-
-        // ------------------------------------------------------------------------
-        // Connection Management
-        // ------------------------------------------------------------------------
-
-        /// Initialize connection with server
-        ///
-        /// Performs protocol handshake and capability negotiation.
-        ///
-        /// Calls MCP method: initialize
-        @since(version = 0.1.0)
-        initialize: func(params: initialize-params)
-            -> future<result<initialize-result, error>>;
-
-        /// Send initialized notification to server
-        ///
-        /// Must be called after successful initialization.
-        ///
-        /// Sends MCP notification: notifications/initialized
-        @since(version = 0.1.0)
-        send-initialized: func() -> result<_, error>;
-
-        /// Ping the server
-        ///
-        /// Check if server is still responsive.
-        ///
-        /// Calls MCP method: ping
-        @since(version = 0.1.0)
-        ping: func() -> future<result<_, error>>;
-
-        /// Disconnect from server
-        ///
-        /// Gracefully close the connection.
-        @since(version = 0.1.0)
-        disconnect: func() -> future<result<_, error>>;
-
-        /// Check if connected
-        ///
-        /// Returns true if the connection is active.
-        @since(version = 0.1.0)
-        is-connected: func() -> bool;
-
-        // ------------------------------------------------------------------------
-        // Resources
-        // ------------------------------------------------------------------------
-
-        /// List available resources
-        ///
-        /// Calls MCP method: resources/list
-        @since(version = 0.1.0)
-        list-resources: func(
-            params: paginated-request,
-            meta: option<request-meta>
-        ) -> future<result<list-resources-result, error>>;
-
-        /// List resource templates
-        ///
-        /// Calls MCP method: resources/templates/list
-        @since(version = 0.1.0)
-        list-resource-templates: func(
-            params: paginated-request,
-            meta: option<request-meta>
-        ) -> future<result<list-resource-templates-result, error>>;
-
-        /// Read a resource
-        ///
-        /// Calls MCP method: resources/read
-        @since(version = 0.1.0)
-        read-resource: func(
-            uri: string,
-            meta: option<request-meta>
-        ) -> future<result<read-resource-result, error>>;
-
-        /// Subscribe to resource updates
-        ///
-        /// Calls MCP method: resources/subscribe
-        @since(version = 0.1.0)
-        subscribe-resource: func(
-            uri: string,
-            meta: option<request-meta>
-        ) -> future<result<_, error>>;
-
-        /// Unsubscribe from resource updates
-        ///
-        /// Calls MCP method: resources/unsubscribe
-        @since(version = 0.1.0)
-        unsubscribe-resource: func(
-            uri: string,
-            meta: option<request-meta>
-        ) -> future<result<_, error>>;
-
-        // ------------------------------------------------------------------------
-        // Tools
-        // ------------------------------------------------------------------------
-
-        /// List available tools
-        ///
-        /// Calls MCP method: tools/list
-        @since(version = 0.1.0)
-        list-tools: func(
-            params: paginated-request,
-            meta: option<request-meta>
-        ) -> future<result<list-tools-result, error>>;
-
-        /// Call a tool
-        ///
-        /// Calls MCP method: tools/call
-        @since(version = 0.1.0)
-        call-tool: func(
-            name: string,
-            arguments: option<list<u8>>,  // JSON
-            meta: option<request-meta>
-        ) -> future<result<call-tool-result, error>>;
-
-        // ------------------------------------------------------------------------
-        // Prompts
-        // ------------------------------------------------------------------------
-
-        /// List available prompts
-        ///
-        /// Calls MCP method: prompts/list
-        @since(version = 0.1.0)
-        list-prompts: func(
-            params: paginated-request,
-            meta: option<request-meta>
-        ) -> future<result<list-prompts-result, error>>;
-
-        /// Get a prompt
-        ///
-        /// Calls MCP method: prompts/get
-        @since(version = 0.1.0)
-        get-prompt: func(
-            name: string,
-            arguments: option<list<u8>>,  // JSON
-            meta: option<request-meta>
-        ) -> future<result<get-prompt-result, error>>;
-
-        // ------------------------------------------------------------------------
-        // Logging
-        // ------------------------------------------------------------------------
-
-        /// Set log level on server
-        ///
-        /// Calls MCP method: logging/setLevel
-        @since(version = 0.1.0)
-        set-log-level: func(
-            level: log-level
-        ) -> future<result<_, error>>;
-
-        // ------------------------------------------------------------------------
-        // Event Subscription
-        // ------------------------------------------------------------------------
-
-        /// Subscribe to server notifications
-        ///
-        /// Returns a pollable that signals when notifications arrive.
-        @since(version = 0.1.0)
-        subscribe-notifications: func() -> pollable;
-
-        /// Get pending notifications
-        ///
-        /// Retrieve all notifications received since last call.
-        @since(version = 0.1.0)
-        get-notifications: func() -> list<notification>;
-
-        // ------------------------------------------------------------------------
-        // Cancellation
-        // ------------------------------------------------------------------------
-
-        /// Cancel a pending request
-        ///
-        /// Sends MCP notification: notifications/cancelled
-        @since(version = 0.1.0)
-        cancel-request: func(
-            request-id: string,
-            reason: option<string>
-        ) -> result<_, error>;
+    /// Tool call result from remote server
+    record tool-call-result {
+        /// Result content blocks
+        content: list<content-block>,
+        /// Whether this is an error
+        is-error: option<bool>,
     }
 
-    // ============================================================================
-    // Client Creation
-    // ============================================================================
-
-    /// Create a new MCP client
-    ///
-    /// Creates a client instance ready to connect to an MCP server.
-    /// The actual connection is established when initialize() is called.
-    @since(version = 0.1.0)
-    create-client: func(
-        implementation: implementation,
-        capabilities: client-capabilities
-    ) -> result<mcp-client, error>;
-
-    // ============================================================================
-    // Client Configuration
-    // ============================================================================
-
-    /// Configuration for MCP client
-    @since(version = 0.1.0)
-    record client-config {
-        /// Connection timeout in milliseconds
-        timeout: u64,
-        /// Maximum retry attempts
-        max-retries: u32,
-        /// Retry delay in milliseconds
-        retry-delay: u64,
-        /// Enable automatic reconnection
-        auto-reconnect: bool,
+    /// Resource read result from remote server
+    record resource-read-result {
+        /// Resource content blocks
+        contents: list<content-block>,
     }
 
-    /// Create client with custom configuration
+    /// Prompt get result from remote server
+    record prompt-get-result {
+        /// Prompt messages
+        messages: list<prompt-message>,
+    }
+
+    /// Connect to an MCP server
+    ///
+    /// Establishes a connection to an MCP server via the host.
+    /// The host handles transport (stdio, HTTP, WebSocket).
+    ///
+    /// # Parameters
+    /// - endpoint: Connection endpoint (format depends on transport)
+    ///   Examples: "stdio", "http://localhost:3000", "ws://server/mcp"
+    ///
+    /// # Returns
+    /// - connection-id: Identifier for this connection
+    ///
+    /// # Errors
+    /// - internal-error: Failed to connect
     @since(version = 0.1.0)
-    create-client-with-config: func(
-        implementation: implementation,
-        capabilities: client-capabilities,
-        config: client-config
-    ) -> result<mcp-client, error>;
+    connect: func(endpoint: string) -> result<string, error>;
+
+    /// Initialize MCP session
+    ///
+    /// Performs protocol handshake and capability negotiation.
+    ///
+    /// # Parameters
+    /// - connection-id: Connection identifier from connect()
+    /// - client-name: Client name (e.g., "my-client")
+    /// - client-version: Client version (e.g., "1.0.0")
+    ///
+    /// # Returns
+    /// - server-name: Connected server name
+    /// - server-version: Connected server version
+    ///
+    /// # Errors
+    /// - internal-error: Initialization failed
+    @since(version = 0.1.0)
+    initialize: func(
+        connection-id: string,
+        client-name: string,
+        client-version: string
+    ) -> result<tuple<string, string>, error>;
+
+    /// Call a tool on the remote server
+    ///
+    /// # Parameters
+    /// - connection-id: Connection identifier
+    /// - tool-name: Name of the tool to call
+    /// - arguments: Tool arguments as JSON bytes
+    ///
+    /// # Returns
+    /// - tool-call-result: Tool execution result
+    ///
+    /// # Errors
+    /// - tool-not-found: Tool doesn't exist
+    /// - invalid-params: Arguments are invalid
+    /// - internal-error: Tool execution failed
+    @since(version = 0.1.0)
+    call-tool: func(
+        connection-id: string,
+        tool-name: string,
+        arguments: list<u8>
+    ) -> result<tool-call-result, error>;
+
+    /// Read a resource from the remote server
+    ///
+    /// # Parameters
+    /// - connection-id: Connection identifier
+    /// - resource-uri: Resource URI to read
+    ///
+    /// # Returns
+    /// - resource-read-result: Resource contents
+    ///
+    /// # Errors
+    /// - resource-not-found: Resource doesn't exist
+    /// - internal-error: Read failed
+    @since(version = 0.1.0)
+    read-resource: func(
+        connection-id: string,
+        resource-uri: string
+    ) -> result<resource-read-result, error>;
+
+    /// Get a prompt from the remote server
+    ///
+    /// # Parameters
+    /// - connection-id: Connection identifier
+    /// - prompt-name: Name of the prompt
+    /// - arguments: Optional prompt arguments as JSON bytes
+    ///
+    /// # Returns
+    /// - prompt-get-result: Prompt messages
+    ///
+    /// # Errors
+    /// - prompt-not-found: Prompt doesn't exist
+    /// - invalid-params: Arguments are invalid
+    /// - internal-error: Prompt generation failed
+    @since(version = 0.1.0)
+    get-prompt: func(
+        connection-id: string,
+        prompt-name: string,
+        arguments: option<list<u8>>
+    ) -> result<prompt-get-result, error>;
+
+    /// Disconnect from an MCP server
+    ///
+    /// Closes the connection gracefully.
+    ///
+    /// # Parameters
+    /// - connection-id: Connection identifier
+    ///
+    /// # Errors
+    /// - internal-error: Disconnect failed
+    @since(version = 0.1.0)
+    disconnect: func(connection-id: string) -> result<_, error>;
 }
