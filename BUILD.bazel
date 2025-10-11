@@ -1,4 +1,13 @@
-"""WASI MCP - Model Context Protocol Interface Definitions"""
+"""WASI MCP - Model Context Protocol Interface Definitions
+
+WASI MCP follows a bidirectional system interface pattern:
+- Components IMPORT runtime (register capabilities, start serving)
+- Components EXPORT handlers (execute tools, read resources)
+
+Architecture:
+  Host: Protocol, transport, auth, middleware
+  Component: Domain logic (tools, resources, prompts)
+"""
 
 load("@rules_wasm_component//wit:defs.bzl", "wit_library")
 
@@ -9,6 +18,17 @@ package(default_visibility = ["//visibility:public"])
 # ============================================================================
 
 # WASI MCP WIT Library - Preview3
+#
+# Interfaces:
+# - runtime.wit: Registration and framework APIs (component imports)
+# - handlers.wit: Callback interfaces (component exports)
+# - client.wit: Client operations (component imports)
+# - world.wit: Bidirectional worlds
+#
+# Worlds:
+# - mcp-backend: import runtime + export handlers
+# - mcp-client: import client
+# - mcp-proxy: import runtime + client, export handlers
 wit_library(
     name = "mcp",
     srcs = glob(
@@ -27,11 +47,22 @@ wit_library(
 # ============================================================================
 
 # WASI MCP WIT Library - Preview2
+#
+# Interfaces (blocking versions):
+# - runtime.wit: Registration and framework APIs (component imports)
+# - handlers.wit: Callback interfaces (component exports)
+# - client.wit: Client operations (component imports)
+# - world.wit: Bidirectional worlds
+#
+# Worlds:
+# - mcp-backend-preview2: import runtime + export handlers
+# - mcp-client-preview2: import client
+# - mcp-proxy-preview2: import runtime + client, export handlers
 wit_library(
     name = "mcp_preview2",
     srcs = glob(["wit/preview2/*.wit"]),
     package_name = "wasi:mcp@0.1.0-preview2",
     deps = [
-        "@wasi_clocks_v020//:clocks",   # Preview2 uses 0.2.0
+        "@wasi_clocks_v020//:clocks",   # Preview2 uses WASI 0.2.0
     ],
 )

@@ -1,101 +1,96 @@
 # WASI MCP Preview2 Interfaces
 
-This directory contains **Preview2-compatible** WIT interfaces for immediate prototyping with stable WASI Preview2 toolchains.
+**Status**: Blocking operations for immediate use with stable toolchains
 
-## Why Preview2?
+Preview2-compatible WIT interfaces for immediate prototyping with current stable WebAssembly toolchains. These interfaces use blocking (synchronous) operations instead of async futures.
 
-While the main WIT interfaces in `../` use **Preview3 async patterns** (the aspirational design), Preview2 allows you to:
+## Architecture
 
-- ✅ **Build working prototypes TODAY** with stable Rust/Go/C++/JS toolchains
-- ✅ **Validate the interface design** with real implementations
-- ✅ **Demonstrate to stakeholders** with actual working code
-- ✅ **Test the ergonomics** before Preview3 is ready
+Preview2 follows the same **bidirectional pattern** as Preview3:
+
+```
+┌─────────────────────────────────────────┐
+│            Host Runtime                  │
+│  - MCP Protocol Implementation           │
+│  - Transport Layer (stdio/HTTP/WS)      │
+│  - Middleware (auth, logging, etc.)     │
+└─────────────────────────────────────────┘
+                   ↕
+         imports runtime (blocking)
+         exports handlers (blocking)
+                   ↕
+┌─────────────────────────────────────────┐
+│      Component (Your Code)               │
+│  - Registration: register-server(), etc. │
+│  - Handlers: call-tool(), read-resource()│
+└─────────────────────────────────────────┘
+```
+
+**Key Principle**: Component imports runtime capabilities and exports handlers, just like Preview3, but all operations are blocking.
 
 ## Key Differences from Preview3
 
-| Feature | Preview3 (../) | Preview2 (here) |
-|---------|---------------|-----------------|
+| Feature | Preview3 | Preview2 |
+|---------|----------|----------|
 | **Async support** | `future<result<T, error>>` | `result<T, error>` (blocking) |
 | **WASI version** | 0.2.3 | 0.2.0 |
-| **Complexity** | Full MCP 2025-06-18 | Simplified for prototyping |
-| **Status** | Aspirational target | Available now |
-| **Use case** | Final standardization | Immediate prototyping |
+| **I/O support** | wasi:io/streams, wasi:io/poll | Not needed (blocking) |
+| **Toolchain** | Requires async support | Stable toolchains |
+| **Status** | Aspirational (future) | Available now |
+| **Architecture** | Bidirectional (import+export) | Bidirectional (import+export) ✅ |
 
-## Example: Blocking vs Async
+**Important**: Both Preview2 and Preview3 use the same bidirectional architecture. The only difference is async vs blocking operations.
 
-**Preview3 (aspirational):**
+## Worlds
+
+### mcp-backend-preview2
+For components that provide MCP tools/resources/prompts:
 ```wit
-initialize: func(params: initialize-params)
-    -> future<result<initialize-result, error>>;
-```
-
-**Preview2 (available now):**
-```wit
-initialize: func(params: initialize-params)
-    -> result<initialize-result, error>;
-```
-
-## Building with Preview2
-
-```bash
-# Build Preview2 version
-bazel build //:mcp_preview2
-
-# Use in your component
-wit_library(
-    name = "my_mcp_server",
-    srcs = ["server.wit"],
-    deps = ["@wasi_mcp//:mcp_preview2"],
-)
-```
-
-## Component Worlds
-
-### mcp-server-preview2
-Implement an MCP server with synchronous operations:
-```wit
-world mcp-server-preview2 {
+world mcp-backend-preview2 {
+    import runtime;   // Register and serve
+    export handlers;  // Execute tools, read resources
     import wasi:clocks/wall-clock@0.2.0;
-    export server;  // Synchronous MCP operations
 }
 ```
 
 ### mcp-client-preview2
-Build an MCP client with blocking calls:
+For components that consume MCP servers:
 ```wit
 world mcp-client-preview2 {
+    import client;    // Connect and make requests
     import wasi:clocks/wall-clock@0.2.0;
-    import server;  // Make blocking MCP calls
 }
 ```
 
-## What's Included
+### mcp-proxy-preview2
+For components that aggregate/transform MCP servers:
+```wit
+world mcp-proxy-preview2 {
+    import runtime;   // Serve downstream
+    export handlers;  // Handle downstream requests
+    import client;    // Call upstream servers
+    import wasi:clocks/wall-clock@0.2.0;
+}
+```
 
-- **types.wit** - Core MCP types (simplified)
-- **server.wit** - Synchronous server operations
-- **world.wit** - Preview2 component worlds
+## Building
 
-**Not included** (use Preview3 version for full spec):
-- Streaming interfaces
-- Complete notification system
-- Full capabilities model
-- Content block variants
+To validate Preview2 interfaces with Bazel:
 
-## Migration Path
+```bash
+bazel build //:mcp_preview2
+```
 
-1. **Now**: Prototype with Preview2 (this directory)
-2. **Later**: When Preview3 is stable, migrate to `../` interfaces
-3. **Eventually**: Preview3 becomes the standard
+To generate bindings:
 
-The core API shapes are the same, just add `future<>` wrappers when migrating.
+```bash
+# Rust
+wit-bindgen rust wit/preview2/ --out-dir src/bindings/
 
-## Examples
-
-See the examples directory for:
-- Rust MCP server (Preview2)
-- Go MCP client (Preview2)
-- C++ MCP proxy (Preview2)
+# Go
+wit-bindgen-go wit/preview2/ --out-dir bindings/
+```
 
 ## Status
 
-✅ **Ready for prototyping** - All interfaces validated with Bazel
+✅ **Ready for prototyping** - Architecture redesigned, validated with Bazel

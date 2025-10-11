@@ -1,0 +1,29 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// WASI MCP Worlds (Preview2 - Blocking)
+///
+/// Preview2 versions with blocking operations for immediate use with stable toolchains.
+
+@since(version = 0.1.0)
+world mcp-backend-preview2 {
+    import runtime;
+    export handlers;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:clocks/monotonic-clock@0.2.0;
+}
+
+@since(version = 0.1.0)
+world mcp-client-preview2 {
+    import client;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:clocks/monotonic-clock@0.2.0;
+}
+
+@since(version = 0.1.0)
+world mcp-proxy-preview2 {
+    import runtime;
+    export handlers;
+    import client;
+    import wasi:clocks/wall-clock@0.2.0;
+    import wasi:clocks/monotonic-clock@0.2.0;
+}

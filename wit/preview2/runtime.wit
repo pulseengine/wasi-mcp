@@ -1,0 +1,138 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// MCP Runtime Interface (Preview2 - Blocking)
+///
+/// Preview2 version with blocking operations (no future<T>).
+/// Components import this interface to register capabilities and start serving.
+@since(version = 0.1.0)
+interface runtime {
+    use types.{error, progress-token};
+    use content.{log-level};
+    use capabilities.{server-capabilities};
+
+    /// Server metadata and capabilities
+    record server-info {
+        name: string,
+        version: string,
+        capabilities: server-capabilities,
+        instructions: option<string>,
+    }
+
+    /// Tool definition for registration
+    record tool-definition {
+        name: string,
+        title: option<string>,
+        description: string,
+        input-schema: list<u8>,
+        output-schema: option<list<u8>>,
+        annotations: option<tool-annotations>,
+    }
+
+    /// Tool annotations for hints to clients
+    record tool-annotations {
+        title: option<string>,
+        read-only-hint: option<bool>,
+        destructive-hint: option<bool>,
+        idempotent-hint: option<bool>,
+        open-world-hint: option<bool>,
+    }
+
+    /// Resource definition for registration
+    record resource-definition {
+        uri: string,
+        name: string,
+        title: option<string>,
+        description: option<string>,
+        mime-type: option<string>,
+        size: option<u64>,
+    }
+
+    /// Resource template for dynamic URIs (RFC 6570)
+    record resource-template {
+        uri-template: string,
+        name: string,
+        title: option<string>,
+        description: option<string>,
+        mime-type: option<string>,
+    }
+
+    /// Prompt definition for registration
+    record prompt-definition {
+        name: string,
+        title: option<string>,
+        description: option<string>,
+        arguments: option<list<prompt-argument>>,
+    }
+
+    /// Prompt argument definition
+    record prompt-argument {
+        name: string,
+        description: option<string>,
+        required: option<bool>,
+    }
+
+    /// Notification types that can be sent to clients
+    variant notification {
+        resources-list-changed,
+        resources-updated(list<string>),
+        tools-list-changed,
+        prompts-list-changed,
+        progress(progress-notification),
+        message(message-notification),
+        cancelled(string),
+    }
+
+    /// Progress notification details
+    record progress-notification {
+        progress-token: progress-token,
+        progress: u64,
+        total: option<u64>,
+    }
+
+    /// Message notification details
+    record message-notification {
+        level: log-level,
+        message: string,
+        data: option<list<u8>>,
+    }
+
+    /// Register this component's server information
+    @since(version = 0.1.0)
+    register-server: func(info: server-info) -> result<_, error>;
+
+    /// Register tools this component provides
+    @since(version = 0.1.0)
+    register-tools: func(tools: list<tool-definition>) -> result<_, error>;
+
+    /// Register resources this component provides
+    @since(version = 0.1.0)
+    register-resources: func(resources: list<resource-definition>) -> result<_, error>;
+
+    /// Register resource templates (URI templates per RFC 6570)
+    @since(version = 0.1.0)
+    register-resource-templates: func(templates: list<resource-template>) -> result<_, error>;
+
+    /// Register prompts this component provides
+    @since(version = 0.1.0)
+    register-prompts: func(prompts: list<prompt-definition>) -> result<_, error>;
+
+    /// Start serving MCP requests (blocking)
+    @since(version = 0.1.0)
+    serve: func() -> result<_, error>;
+
+    /// Send a notification to connected clients
+    @since(version = 0.1.0)
+    send-notification: func(notification: notification) -> result<_, error>;
+
+    /// Log a message through MCP logging protocol
+    @since(version = 0.1.0)
+    log: func(level: log-level, message: string, data: option<list<u8>>) -> result<_, error>;
+
+    /// Report progress for long-running operations
+    @since(version = 0.1.0)
+    report-progress: func(
+        token: progress-token,
+        progress: u64,
+        total: option<u64>
+    ) -> result<_, error>;
+}
