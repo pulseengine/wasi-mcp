@@ -1,0 +1,93 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// MCP Handler Interface (Preview2 - Blocking)
+///
+/// Components export this interface to handle incoming MCP requests.
+@since(version = 0.1.0)
+interface handlers {
+    use types.{error};
+    use content.{content-block, prompt-message};
+
+    /// Result of tool execution
+    record tool-result {
+        content: list<content-block>,
+        is-error: option<bool>,
+    }
+
+    /// Contents of a resource
+    record resource-contents {
+        contents: list<content-block>,
+    }
+
+    /// Contents of a prompt
+    record prompt-contents {
+        messages: list<prompt-message>,
+    }
+
+    /// Completion suggestion
+    record completion {
+        value: string,
+        label: option<string>,
+    }
+
+    /// Reference type for completion
+    enum completion-ref-type {
+        tool-name,
+        resource-uri,
+        prompt-name,
+        argument-name,
+    }
+
+    /// Elicitation field definition
+    record elicitation-field {
+        name: string,
+        field-type: string,
+        description: option<string>,
+        required: option<bool>,
+    }
+
+    /// Elicitation response
+    record elicitation-response {
+        values: list<u8>,
+    }
+
+    /// Called when a client requests tool execution
+    @since(version = 0.1.0)
+    call-tool: func(
+        name: string,
+        arguments: list<u8>
+    ) -> result<tool-result, error>;
+
+    /// Called when a client reads a resource
+    @since(version = 0.1.0)
+    read-resource: func(uri: string) -> result<resource-contents, error>;
+
+    /// Called when a client requests a prompt
+    @since(version = 0.1.0)
+    get-prompt: func(
+        name: string,
+        arguments: option<list<u8>>
+    ) -> result<prompt-contents, error>;
+
+    /// Called when a client subscribes to resource updates (optional)
+    @since(version = 0.1.0)
+    handle-subscribe: func(uri: string) -> result<_, error>;
+
+    /// Called when a client unsubscribes from resource updates (optional)
+    @since(version = 0.1.0)
+    handle-unsubscribe: func(uri: string) -> result<_, error>;
+
+    /// Called for auto-completion requests (optional)
+    @since(version = 0.1.0)
+    handle-complete: func(
+        ref-type: completion-ref-type,
+        ref-value: string
+    ) -> result<list<completion>, error>;
+
+    /// Called for elicitation requests (optional)
+    @since(version = 0.1.0)
+    handle-elicit: func(
+        message: string,
+        fields: list<elicitation-field>
+    ) -> result<elicitation-response, error>;
+}

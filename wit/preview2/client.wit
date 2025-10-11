@@ -1,0 +1,65 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// MCP Client Interface (Preview2 - Blocking)
+///
+/// Components import this interface to act as MCP clients.
+@since(version = 0.1.0)
+interface client {
+    use types.{error};
+    use content.{content-block, prompt-message};
+
+    /// Tool call result from remote server
+    record tool-call-result {
+        content: list<content-block>,
+        is-error: option<bool>,
+    }
+
+    /// Resource read result from remote server
+    record resource-read-result {
+        contents: list<content-block>,
+    }
+
+    /// Prompt get result from remote server
+    record prompt-get-result {
+        messages: list<prompt-message>,
+    }
+
+    /// Connect to an MCP server (blocking)
+    @since(version = 0.1.0)
+    connect: func(endpoint: string) -> result<string, error>;
+
+    /// Initialize MCP session (blocking)
+    @since(version = 0.1.0)
+    initialize: func(
+        connection-id: string,
+        client-name: string,
+        client-version: string
+    ) -> result<tuple<string, string>, error>;
+
+    /// Call a tool on the remote server (blocking)
+    @since(version = 0.1.0)
+    call-tool: func(
+        connection-id: string,
+        tool-name: string,
+        arguments: list<u8>
+    ) -> result<tool-call-result, error>;
+
+    /// Read a resource from the remote server (blocking)
+    @since(version = 0.1.0)
+    read-resource: func(
+        connection-id: string,
+        resource-uri: string
+    ) -> result<resource-read-result, error>;
+
+    /// Get a prompt from the remote server (blocking)
+    @since(version = 0.1.0)
+    get-prompt: func(
+        connection-id: string,
+        prompt-name: string,
+        arguments: option<list<u8>>
+    ) -> result<prompt-get-result, error>;
+
+    /// Disconnect from an MCP server
+    @since(version = 0.1.0)
+    disconnect: func(connection-id: string) -> result<_, error>;
+}
