@@ -88,6 +88,35 @@ See [`wit/preview2/README.md`](wit/preview2/README.md) for details on prototypin
 - **AI Model Integration**: Direct LLM integration is out of scope
 - **Backward Compatibility**: Only targeting latest MCP spec
 
+## Architecture
+
+**Bidirectional System Interface Pattern** - WASI MCP follows a clear separation of concerns:
+
+```
+┌─────────────────────────────────────────┐
+│            Host Runtime                  │
+│  - MCP Protocol Implementation           │
+│  - Transport Layer (stdio/HTTP/WS)      │
+│  - JSON-RPC Handling                     │
+│  - Middleware (auth, logging, etc.)     │
+└─────────────────────────────────────────┘
+                   ↕
+         imports runtime (async)
+         exports handlers (async)
+                   ↕
+┌─────────────────────────────────────────┐
+│      Component (Your Code)               │
+│  - Registration: register-server(), etc. │
+│  - Handlers: call-tool(), read-resource()│
+│  - Domain Logic Only                     │
+└─────────────────────────────────────────┘
+```
+
+**Key Principle**: Component imports runtime capabilities and exports handlers:
+- **Component IMPORTS runtime**: Register capabilities, start serving, send notifications
+- **Component EXPORTS handlers**: Execute tools, read resources, get prompts
+- **Host handles**: Protocol, transport, serialization, middleware
+
 ## API Overview
 
 **Interface Structure** (following WASI multi-interface pattern):
@@ -95,181 +124,184 @@ See [`wit/preview2/README.md`](wit/preview2/README.md) for details on prototypin
 ```
 wit/
 ├── deps.toml                  # wasi:io, wasi:clocks dependencies
-├── types.wit                  # Core MCP types (request-id, cursor, resources, tools, prompts)
+├── types.wit                  # Core MCP types (resources, tools, prompts)
 ├── capabilities.wit           # ServerCapabilities, ClientCapabilities
 ├── content.wit                # Content blocks (text, image, embedded-resource)
-├── server.wit                 # Typed server operations (initialize, list-resources, call-tool, etc.)
-├── client.wit                 # Typed client operations
-├── notifications.wit          # Notification types (list-changed, updated, progress)
-├── streaming.wit              # Streaming for large resources
-├── world.wit                  # Component worlds (mcp-server, mcp-client, mcp-proxy)
+├── runtime.wit                # Runtime API (component imports)
+├── handlers.wit               # Handler interface (component exports)
+├── client.wit                 # Client operations (component imports)
+├── world.wit                  # Component worlds (mcp-backend, mcp-client, mcp-proxy)
 └── preview2/                  # Preview2 version for immediate prototyping
-    ├── README.md              # Preview2 guide
+    ├── README.md              # Preview2 guide with bidirectional pattern
     ├── types.wit              # Simplified types (blocking)
-    ├── server.wit             # Synchronous server operations
+    ├── runtime.wit            # Registration API (blocking)
+    ├── handlers.wit           # Callback interface (blocking)
+    ├── client.wit             # Client operations (blocking)
     └── world.wit              # Preview2 component worlds
+
 ```
 
-**Key Design**: Each MCP protocol method has a typed WIT function:
+**Key Design**: Bidirectional interface pattern:
 
 ```wit
-interface server {
-    resource mcp-server {
-        // Corresponds to MCP method: initialize
-        initialize: func(params: initialize-params)
-            -> future<result<initialize-result, error>>;
+// Component IMPORTS runtime to register and serve
+interface runtime {
+    register-server: func(info: server-info) -> future<result<_, error>>;
+    register-tools: func(tools: list<tool-definition>) -> future<result<_, error>>;
+    register-resources: func(resources: list<resource-definition>) -> future<result<_, error>>;
+    serve: func() -> future<result<_, error>>;
+    send-notification: func(notification: notification) -> future<result<_, error>>;
+}
 
-        // Corresponds to MCP method: resources/list
-        list-resources: func(params: paginated-request, meta: option<request-meta>)
-            -> future<result<list-resources-result, error>>;
-
-        // Corresponds to MCP method: tools/call
-        call-tool: func(name: string, arguments: option<list<u8>>, meta: option<request-meta>)
-            -> future<result<call-tool-result, error>>;
-
-        // ... all other MCP methods
-    }
+// Component EXPORTS handlers to execute operations
+interface handlers {
+    call-tool: func(name: string, arguments: list<u8>) -> future<result<tool-result, error>>;
+    read-resource: func(uri: string) -> future<result<resource-contents, error>>;
+    get-prompt: func(name: string, arguments: option<list<u8>>) -> future<result<prompt-contents, error>>;
 }
 ```
 
 ## Examples
 
-### MCP Server with Typed Operations
+### MCP Backend with Bidirectional Pattern
 
 ```rust
-use wasi::mcp::{types::*, server::*, capabilities::*};
+use wasi::mcp::{types::*, runtime::*, handlers::*, capabilities::*};
 
+// Component initialization: Register with runtime
 #[export]
-fn create_database_server() -> Result<mcp-server, error> {
-    let implementation = Implementation {
+async fn init() -> Result<(), Error> {
+    let server_info = ServerInfo {
         name: "database-context".to_string(),
         version: "1.0.0".to_string(),
-        website_url: None,
+        capabilities: ServerCapabilities {
+            resources: Some(ResourcesCapability {
+                subscribe: Some(true),
+                list_changed: Some(true),
+            }),
+            tools: Some(ToolsCapability {
+                list_changed: Some(false),
+            }),
+            prompts: None,
+            logging: None,
+        },
+        instructions: Some("Database context provider for SQL queries".to_string()),
     };
 
-    let capabilities = ServerCapabilities {
-        resources: Some(ResourcesCapability {
-            subscribe: Some(true),
-            list_changed: Some(true),
-        }),
-        tools: Some(ToolsCapability {
-            list_changed: Some(false),
-        }),
-        prompts: None,
-        logging: None,
-        sampling: None,
-        elicitation: None,
-        completions: None,
-        experimental: None,
-    };
+    // Register server with runtime (component imports runtime)
+    register_server(server_info).await?;
 
-    create_server(implementation, capabilities)
+    // Register tools
+    let tools = vec![
+        ToolDefinition {
+            name: "execute-query".to_string(),
+            description: Some("Execute SQL query".to_string()),
+            input_schema: tool_schema(),
+        },
+    ];
+    register_tools(tools).await?;
+
+    // Register resources
+    let resources = vec![
+        ResourceDefinition {
+            uri: "db://tables".to_string(),
+            name: "database-tables".to_string(),
+            description: Some("List of all database tables".to_string()),
+            mime_type: Some("application/json".to_string()),
+        },
+    ];
+    register_resources(resources).await?;
+
+    // Start serving
+    serve().await
 }
 
-// Implement typed server operations
-impl mcp_server {
-    async fn initialize(&self, params: InitializeParams)
-        -> Result<InitializeResult, Error>
-    {
-        // Perform version negotiation
-        let protocol_version = if params.protocol_version == "2025-06-18" {
-            "2025-06-18".to_string()
-        } else {
-            "2025-03-26".to_string() // Fallback
-        };
+// Component exports handlers for runtime to call
+#[export]
+async fn call_tool(name: String, arguments: Vec<u8>) -> Result<ToolResult, Error> {
+    match name.as_str() {
+        "execute-query" => {
+            let args: QueryArgs = serde_json::from_slice(&arguments)?;
+            let result = execute_database_query(&args.query).await?;
 
-        Ok(InitializeResult {
-            protocol_version,
-            capabilities: self.get_capabilities(),
-            server_info: self.get_implementation(),
-            instructions: Some("Database context provider for SQL queries".to_string()),
-        })
-    }
-
-    async fn list_resources(&self, params: PaginatedRequest, meta: Option<RequestMeta>)
-        -> Result<ListResourcesResult, Error>
-    {
-        let resources = vec![
-            Resource {
-                uri: "db://tables".to_string(),
-                name: "database-tables".to_string(),
-                title: Some("Database Tables".to_string()),
-                description: Some("List of all database tables".to_string()),
-                mime_type: Some("application/json".to_string()),
-                size: None,
-                annotations: None,
-            },
-        ];
-
-        Ok(ListResourcesResult {
-            resources,
-            next_cursor: None,
-        })
-    }
-
-    async fn call_tool(&self, name: String, arguments: Option<Vec<u8>>, meta: Option<RequestMeta>)
-        -> Result<CallToolResult, Error>
-    {
-        match name.as_str() {
-            "execute-query" => {
-                let args: QueryArgs = serde_json::from_slice(&arguments.unwrap())?;
-                let result = execute_database_query(&args.query).await?;
-
-                Ok(CallToolResult {
-                    content: vec![ContentBlock::Text(TextContent {
-                        content_type: "text".to_string(),
-                        text: serde_json::to_string(&result)?,
-                        annotations: None,
-                    })],
-                    structured_content: Some(serde_json::to_vec(&result)?),
-                    is_error: Some(false),
-                })
-            }
-            _ => Err(Error::tool_not_found(format!("Unknown tool: {}", name)))
+            Ok(ToolResult {
+                content: vec![ContentBlock::Text(TextContent {
+                    content_type: "text".to_string(),
+                    text: serde_json::to_string(&result)?,
+                    annotations: None,
+                })],
+                is_error: Some(false),
+            })
         }
+        _ => Err(Error::tool_not_found(format!("Unknown tool: {}", name)))
+    }
+}
+
+#[export]
+async fn read_resource(uri: String) -> Result<ResourceContents, Error> {
+    match uri.as_str() {
+        "db://tables" => {
+            let tables = get_database_tables().await?;
+            Ok(ResourceContents {
+                contents: vec![ContentBlock::Text(TextContent {
+                    content_type: "text".to_string(),
+                    text: serde_json::to_string(&tables)?,
+                    annotations: None,
+                })],
+            })
+        }
+        _ => Err(Error::resource_not_found(format!("Unknown resource: {}", uri)))
     }
 }
 ```
 
-### MCP Client with Typed Operations
+### MCP Client Operations
 
 ```rust
 use wasi::mcp::{client::*, types::*};
 
 #[export]
-async fn query_mcp_server() -> Result<Vec<Resource>, Error> {
-    let client_impl = Implementation {
-        name: "ai-agent".to_string(),
-        version: "1.0.0".to_string(),
-        website_url: None,
-    };
+async fn query_mcp_server() -> Result<Vec<u8>, Error> {
+    // Connect to remote MCP server (component imports client)
+    let connection_id = connect("http://localhost:3000/mcp").await?;
 
-    let capabilities = ClientCapabilities {
-        roots: None,
-        sampling: None,
-        elicitation: None,
-        experimental: None,
-    };
+    // Initialize session
+    let (server_name, server_version) = initialize(
+        connection_id.clone(),
+        "ai-agent".to_string(),
+        "1.0.0".to_string()
+    ).await?;
 
-    let client = create_client(client_impl, capabilities)?;
+    println!("Connected to {} v{}", server_name, server_version);
 
-    // Initialize connection
-    let init_params = InitializeParams {
-        protocol_version: "2025-06-18".to_string(),
-        capabilities,
-        client_info: client_impl,
-    };
+    // Call a tool on the remote server
+    let tool_args = serde_json::to_vec(&QueryArgs {
+        query: "SELECT * FROM users".to_string()
+    })?;
 
-    let init_result = client.initialize(init_params).await?;
-    client.send_initialized()?;
+    let result = call_tool(
+        connection_id.clone(),
+        "execute-query".to_string(),
+        tool_args
+    ).await?;
 
-    // List available resources
-    let resources_result = client.list_resources(
-        PaginatedRequest { cursor: None },
+    // Read a resource
+    let resource_result = read_resource(
+        connection_id.clone(),
+        "db://tables".to_string()
+    ).await?;
+
+    // Get a prompt
+    let prompt_result = get_prompt(
+        connection_id.clone(),
+        "sql-template".to_string(),
         None
     ).await?;
 
-    Ok(resources_result.resources)
+    // Clean up
+    disconnect(connection_id).await?;
+
+    Ok(result.content[0].as_bytes().to_vec())
 }
 ```
 
