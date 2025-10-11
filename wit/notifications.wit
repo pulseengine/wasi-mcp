@@ -1,0 +1,143 @@
+package wasi:mcp@0.1.0;
+
+/// MCP Notification System
+///
+/// Defines notifications that can be sent from server to client (or vice versa)
+/// for asynchronous events like list changes, resource updates, and progress.
+/// Following MCP 2025-06-18 specification.
+@since(version = 0.1.0)
+interface notifications {
+    use types.{request-id, progress-token};
+    use capabilities.{log-level};
+    use wasi:clocks/wall-clock@0.2.3.{datetime};
+
+    // ============================================================================
+    // Resource Notifications
+    // ============================================================================
+
+    /// Notification that the list of resources has changed
+    ///
+    /// Servers MAY send this notification without a subscription.
+    /// Clients should re-fetch the resource list.
+    @since(version = 0.1.0)
+    record resources-list-changed-notification {
+        // Empty - the notification itself is the event
+    }
+
+    /// Notification that a specific resource has been updated
+    ///
+    /// Only sent if the client previously subscribed to this resource.
+    /// The URI might be a sub-resource of the subscribed URI.
+    @since(version = 0.1.0)
+    record resources-updated-notification {
+        /// URI of the resource that was updated
+        uri: string,
+    }
+
+    // ============================================================================
+    // Tool Notifications
+    // ============================================================================
+
+    /// Notification that the list of tools has changed
+    ///
+    /// Servers MAY send this notification without a subscription.
+    /// Clients should re-fetch the tool list.
+    @since(version = 0.1.0)
+    record tools-list-changed-notification {
+        // Empty - the notification itself is the event
+    }
+
+    // ============================================================================
+    // Prompt Notifications
+    // ============================================================================
+
+    /// Notification that the list of prompts has changed
+    ///
+    /// Servers MAY send this notification without a subscription.
+    /// Clients should re-fetch the prompt list.
+    @since(version = 0.1.0)
+    record prompts-list-changed-notification {
+        // Empty - the notification itself is the event
+    }
+
+    // ============================================================================
+    // Progress Notifications
+    // ============================================================================
+
+    /// Progress notification for a long-running operation
+    ///
+    /// Sent out-of-band to inform about progress of an operation.
+    /// Associated with the original request via the progress token.
+    @since(version = 0.1.0)
+    record progress-notification {
+        /// Progress token from the original request
+        progress-token: progress-token,
+        /// Current progress value (should increase monotonically)
+        progress: u64,
+        /// Total expected progress (if known)
+        total: option<u64>,
+        /// Optional human-readable progress message
+        message: option<string>,
+    }
+
+    // ============================================================================
+    // Logging Notifications
+    // ============================================================================
+
+    /// Log message notification
+    ///
+    /// Sent from server to client to report log messages.
+    /// Only sent after client has set a log level.
+    @since(version = 0.1.0)
+    record message-notification {
+        /// Severity level of this log message
+        level: log-level,
+        /// Optional logger name
+        logger: option<string>,
+        /// Log data (can be string or structured data as JSON)
+        data: list<u8>,  // JSON
+    }
+
+    // ============================================================================
+    // Cancellation Notifications
+    // ============================================================================
+
+    /// Cancellation notification
+    ///
+    /// Sent by either side to cancel a previously-issued request.
+    /// The request SHOULD still be in-flight, but may have already completed.
+    /// This indicates the result will be unused and processing should cease.
+    @since(version = 0.1.0)
+    record cancelled-notification {
+        /// ID of the request to cancel
+        request-id: request-id,
+        /// Optional reason for cancellation
+        reason: option<string>,
+    }
+
+    // ============================================================================
+    // Notification Variant
+    // ============================================================================
+
+    /// All possible MCP notifications
+    ///
+    /// This variant encompasses all notification types that can be sent
+    /// between client and server.
+    @since(version = 0.1.0)
+    variant notification {
+        /// Resources list has changed
+        resources-list-changed(resources-list-changed-notification),
+        /// A specific resource was updated
+        resources-updated(resources-updated-notification),
+        /// Tools list has changed
+        tools-list-changed(tools-list-changed-notification),
+        /// Prompts list has changed
+        prompts-list-changed(prompts-list-changed-notification),
+        /// Progress update for long-running operation
+        progress(progress-notification),
+        /// Log message
+        message(message-notification),
+        /// Request cancellation
+        cancelled(cancelled-notification),
+    }
+}

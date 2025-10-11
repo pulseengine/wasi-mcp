@@ -1,0 +1,167 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// MCP Server Interface - Preview2 Compatible
+///
+/// Synchronous version for immediate prototyping with Preview2 toolchains.
+/// All operations are blocking/synchronous (no future<T>).
+/// For the aspirational Preview3 async version, see ../server.wit
+@since(version = 0.1.0)
+interface server {
+    use types.{
+        error, cursor, progress-token, request-meta, paginated-request,
+        initialize-params,
+        resource-info, resource-template, resource-contents,
+        tool, call-tool-result,
+        prompt, get-prompt-result,
+        implementation, server-status,
+    };
+
+    // ============================================================================
+    // Server Capabilities (simplified for Preview2)
+    // ============================================================================
+
+    /// Server capabilities
+    @since(version = 0.1.0)
+    record server-capabilities {
+        experimental: option<list<u8>>,  // JSON object
+        logging: option<logging-capability>,
+        prompts: option<prompts-capability>,
+        resources: option<resources-capability>,
+        tools: option<tools-capability>,
+    }
+
+    /// Logging capability
+    @since(version = 0.1.0)
+    record logging-capability {}
+
+    /// Prompts capability
+    @since(version = 0.1.0)
+    record prompts-capability {
+        list-changed: option<bool>,
+    }
+
+    /// Resources capability
+    @since(version = 0.1.0)
+    record resources-capability {
+        subscribe: option<bool>,
+        list-changed: option<bool>,
+    }
+
+    /// Tools capability
+    @since(version = 0.1.0)
+    record tools-capability {
+        list-changed: option<bool>,
+    }
+
+    /// Initialize result
+    @since(version = 0.1.0)
+    record initialize-result {
+        protocol-version: types.protocol-version,
+        capabilities: server-capabilities,
+        server-info: implementation,
+    }
+
+    // ============================================================================
+    // Response Types
+    // ============================================================================
+
+    /// Response from list-resources
+    @since(version = 0.1.0)
+    record list-resources-result {
+        resources: list<resource-info>,
+        next-cursor: option<cursor>,
+    }
+
+    /// Response from list-resource-templates
+    @since(version = 0.1.0)
+    record list-resource-templates-result {
+        resource-templates: list<resource-template>,
+        next-cursor: option<cursor>,
+    }
+
+    /// Response from read-resource
+    @since(version = 0.1.0)
+    record read-resource-result {
+        contents: list<resource-contents>,
+    }
+
+    /// Response from list-tools
+    @since(version = 0.1.0)
+    record list-tools-result {
+        tools: list<tool>,
+        next-cursor: option<cursor>,
+    }
+
+    /// Response from list-prompts
+    @since(version = 0.1.0)
+    record list-prompts-result {
+        prompts: list<prompt>,
+        next-cursor: option<cursor>,
+    }
+
+    // ============================================================================
+    // Server Operations (Synchronous/Blocking)
+    // ============================================================================
+
+    /// Initialize the server
+    ///
+    /// PREVIEW2: Synchronous/blocking operation
+    /// PREVIEW3 equivalent: func(...) -> future<result<T, error>>
+    @since(version = 0.1.0)
+    initialize: func(params: initialize-params) -> result<initialize-result, error>;
+
+    /// Ping the server (health check)
+    @since(version = 0.1.0)
+    ping: func() -> result<_, error>;
+
+    /// List available resources
+    @since(version = 0.1.0)
+    list-resources: func(
+        params: paginated-request,
+        meta: option<request-meta>
+    ) -> result<list-resources-result, error>;
+
+    /// List resource templates
+    @since(version = 0.1.0)
+    list-resource-templates: func(
+        params: paginated-request,
+        meta: option<request-meta>
+    ) -> result<list-resource-templates-result, error>;
+
+    /// Read a specific resource
+    @since(version = 0.1.0)
+    read-resource: func(
+        uri: string,
+        meta: option<request-meta>
+    ) -> result<read-resource-result, error>;
+
+    /// List available tools
+    @since(version = 0.1.0)
+    list-tools: func(
+        params: paginated-request,
+        meta: option<request-meta>
+    ) -> result<list-tools-result, error>;
+
+    /// Call a tool
+    @since(version = 0.1.0)
+    call-tool: func(
+        name: string,
+        arguments: option<list<u8>>,  // JSON
+        meta: option<request-meta>
+    ) -> result<call-tool-result, error>;
+
+    /// List available prompts
+    @since(version = 0.1.0)
+    list-prompts: func(
+        params: paginated-request,
+        meta: option<request-meta>
+    ) -> result<list-prompts-result, error>;
+
+    /// Get a prompt
+    @since(version = 0.1.0)
+    get-prompt: func(
+        name: string,
+        arguments: option<list<u8>>,  // JSON map of string to string
+        meta: option<request-meta>
+    ) -> result<get-prompt-result, error>;
+}

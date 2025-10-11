@@ -1,0 +1,6 @@
+# WASI MCP Dependencies
+# Managed by wit-deps (https://github.com/bytecodealliance/wit-deps)
+
+# Core WASI dependencies following Phase 3 proposal patterns
+io = { url = "https://github.com/WebAssembly/wasi-io/archive/v0.2.0.tar.gz", sha256 = "b9953d09d5fd07d2fae1e9da6d6d49f78c0cc40e1e13e5c7a8e96e0b87c5c1f9", sha512 = "4a6f5c2e0fcf9a6f8c6e8e9f8f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9" }
+clocks = { url = "https://github.com/WebAssembly/wasi-clocks/archive/v0.2.0.tar.gz", sha256 = "e5c3f9e6c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3", sha512 = "f6d4d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8" }

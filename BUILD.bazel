@@ -1,0 +1,37 @@
+"""WASI MCP - Model Context Protocol Interface Definitions"""
+
+load("@rules_wasm_component//wit:defs.bzl", "wit_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# ============================================================================
+# Preview3 Version (Aspirational - with async/future support)
+# ============================================================================
+
+# WASI MCP WIT Library - Preview3
+wit_library(
+    name = "mcp",
+    srcs = glob(
+        ["wit/*.wit"],
+        exclude = ["wit/preview2/**"],
+    ),
+    package_name = "wasi:mcp@0.1.0",
+    deps = [
+        "@wasi_io//:streams",      # Includes error, poll, and streams
+        "@wasi_clocks//:clocks",   # Includes wall-clock and monotonic-clock
+    ],
+)
+
+# ============================================================================
+# Preview2 Version (Immediate prototyping - synchronous operations)
+# ============================================================================
+
+# WASI MCP WIT Library - Preview2
+wit_library(
+    name = "mcp_preview2",
+    srcs = glob(["wit/preview2/*.wit"]),
+    package_name = "wasi:mcp@0.1.0-preview2",
+    deps = [
+        "@wasi_clocks_v020//:clocks",   # Preview2 uses 0.2.0
+    ],
+)

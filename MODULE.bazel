@@ -1,0 +1,36 @@
+"""WASI MCP - Model Context Protocol WASI Interface"""
+
+module(
+    name = "wasi_mcp",
+    version = "0.1.0",
+)
+
+# WebAssembly Component Model Rules - from git repository
+bazel_dep(name = "rules_wasm_component")
+git_override(
+    module_name = "rules_wasm_component",
+    remote = "https://github.com/pulseengine/rules_wasm_component.git",
+    commit = "2b37f711669515818d101995be3f7b103b738018",
+)
+
+# WASI WIT interface definitions
+wasi_wit_ext = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasi_wit")
+wasi_wit_ext.init()
+use_repo(
+    wasi_wit_ext,
+    "wasi_clocks",
+    "wasi_clocks_v020",
+    "wasi_io",
+    "wasi_io_v020",
+)
+
+# WebAssembly toolchains for validation
+wasm_toolchain = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasm_toolchain")
+wasm_toolchain.register(
+    name = "wasm_tools",
+    strategy = "download",
+    version = "1.235.0",
+)
+use_repo(wasm_toolchain, "wasm_tools_toolchains")
+
+register_toolchains("@wasm_tools_toolchains//:wasm_tools_toolchain")

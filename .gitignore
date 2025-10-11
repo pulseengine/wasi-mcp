@@ -1,0 +1,6 @@
+# Bazel build artifacts
+MODULE.bazel.lock
+bazel-*
+
+# Claude Code
+.claude/

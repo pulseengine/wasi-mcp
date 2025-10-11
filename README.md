@@ -1,357 +1,447 @@
 # WASI Model Context Protocol (MCP)
 
-A proposed [WebAssembly System Interface](https://github.com/WebAssembly/WASI) API for the Model Context Protocol, targeting WASI Preview3 with full async support.
+A proposed [WebAssembly System Interface](https://github.com/WebAssembly/WASI) API for the Model Context Protocol, providing typed operations for MCP 2025-06-18 with WASI Preview3 async support.
 
 ### Current Phase
 
-Phase 0 - Pre-Proposal
+**Phase 0 - Pre-Proposal** (targeting Phase 1)
 
 ### Champions
 
-- [Your Name/Organization]
+- TBD
 
-### Portability Criteria
+### Approach
 
-TODO before entering Phase 1.
+**Protocol-Faithful Design**: This proposal provides typed WIT interfaces that map directly to MCP protocol operations, similar to how wasi-http maps HTTP semantics. Each MCP method has a corresponding typed function with proper async patterns.
 
-**Preview3 Async Requirements:**
-- Components MUST support `future<T>` and `stream<T>` types
-- All blocking operations MUST be async with proper cancellation
-- Implementations MUST integrate with `wasi:io/poll` for event coordination
-- Resource lifecycle MUST follow WASI resource management patterns
-
-## Table of Contents [if the explainer is longer than one printed page]
+## Table of Contents
 
 - [Introduction](#introduction)
-- [Goals [or Motivating Use Cases, or Scenarios]](#goals-or-motivating-use-cases-or-scenarios)
+- [Goals](#goals)
 - [Non-goals](#non-goals)
-- [API walk-through](#api-walk-through)
-  - [Use case 1](#use-case-1)
-  - [Use case 2](#use-case-2)
-- [Detailed design discussion](#detailed-design-discussion)
-  - [[Tricky design choice 1]](#tricky-design-choice-1)
-  - [[Tricky design choice 2]](#tricky-design-choice-2)
-- [Considered alternatives](#considered-alternatives)
-  - [[Alternative 1]](#alternative-1)
-  - [[Alternative 2]](#alternative-2)
-- [Stakeholder Interest & Feedback](#stakeholder-interest--feedback)
-- [References & acknowledgements](#references--acknowledgements)
+- [API Overview](#api-overview)
+- [Examples](#examples)
+- [Design Discussion](#design-discussion)
+- [Implementation Status](#implementation-status)
+- [Stakeholder Interest](#stakeholder-interest)
+- [References](#references)
 
-### Introduction
+## Introduction
 
-This proposal introduces a WebAssembly System Interface (WASI) API for the Model Context Protocol (MCP), enabling WebAssembly components to act as MCP servers and clients with full async support. The MCP is an open standard that standardizes how applications provide context to Large Language Models (LLMs), facilitating secure and standardized connections between AI systems and data sources.
+The Model Context Protocol (MCP) is an open standard that enables AI applications to connect to external data sources, tools, and workflows. This WASI proposal enables WebAssembly components to implement MCP servers and clients with full protocol support.
 
-**WASI Preview3 Integration:** This proposal targets WASI Preview3, leveraging native async functions with `future<T>` and `stream<T>` types for optimal performance and composability. The design follows established WASI patterns from late-stage proposals (HTTP, Filesystem, Sockets) with proper resource management and error handling.
+**Why WASI for MCP?**
+- **Portability**: Run MCP servers across any WASM runtime
+- **Security**: Leverage WebAssembly's capability-based security model
+- **Performance**: Native async operations with WASI Preview3
+- **Composability**: Component Model enables MCP server aggregation
+- **Type Safety**: Strongly-typed WIT interfaces prevent protocol errors
 
-By integrating MCP with WASI Preview3, this proposal enables WebAssembly components to serve as portable, secure, and interoperable context providers for AI applications. This allows AI tools to access structured data, execute functions, and retrieve resources through WebAssembly components that can run across different platforms and environments while maintaining strong security boundaries and async performance characteristics.
+**Protocol Coverage**: This proposal implements the complete MCP 2025-06-18 specification including:
+- ✅ Protocol initialization and version negotiation
+- ✅ Resources with templates and subscriptions
+- ✅ Tools with annotations
+- ✅ Prompts with arguments
+- ✅ Pagination with cursors
+- ✅ Progress tokens for long-running operations
+- ✅ Notifications for list changes and updates
+- ✅ Logging protocol
+- ✅ Content types (text, image, embedded resources, links)
+- ✅ Streaming support for large resources
 
-### Goals [or Motivating Use Cases, or Scenarios]
+## Two Versions: Preview2 + Preview3
 
-- **Async-First MCP Servers**: Enable WebAssembly components to act as MCP servers with native async support for optimal performance
-- **Secure Context Provision**: Leverage WebAssembly's security model and WASI resource management for safe context access
-- **Streaming Operations**: Support large resource access and long-running tool executions through Preview3 streaming
-- **Interoperable AI Integration**: Allow AI tools to interact with WebAssembly-based data sources through standardized async MCP interfaces
-- **Component Composition**: Enable modular MCP architectures where different components handle different aspects (resources, tools, prompts)
-- **Cross-Platform Compatibility**: Ensure MCP servers built with this API run consistently across different operating systems and architectures
-- **Future-Proof Design**: Align with WASI Preview3 direction and async evolution for long-term viability
+This proposal provides **both** Preview2 and Preview3 interfaces:
 
-### Non-goals
+| Version | Status | Use Case | Location |
+|---------|--------|----------|----------|
+| **Preview3** | Aspirational | Final standardization with async | `wit/*.wit` |
+| **Preview2** | Available now | Immediate prototyping (blocking ops) | `wit/preview2/*.wit` |
 
-- **Full MCP Implementation**: This proposal focuses on the WASI interface layer, not a complete MCP implementation
-- **Transport Layer Details**: Transport mechanisms (HTTP, stdio) are handled by the host environment, not the WASI interface
-- **AI Model Integration**: Direct integration with specific AI models or providers is outside the scope
-- **Legacy Protocol Support**: Only targeting MCP specification (no backwards compatibility with proprietary protocols)
-- **Synchronous APIs**: No support for blocking operations; all operations are async-first following Preview3 patterns
+**Preview2** allows you to build working prototypes **TODAY** with stable toolchains:
+```wit
+// Preview2: Synchronous/blocking (available now)
+initialize: func(params: initialize-params) -> result<initialize-result, error>;
+```
 
-### API walk-through
+**Preview3** is the target design with proper async support:
+```wit
+// Preview3: Async with futures (when Preview3 is ready)
+initialize: func(params: initialize-params) -> future<result<initialize-result, error>>;
+```
 
-The full API documentation can be found in the [WIT files](./wit/).
+See [`wit/preview2/README.md`](wit/preview2/README.md) for details on prototyping with Preview2.
 
-**Interface Structure:**
-- `wasi:mcp/types@0.1.0` - Core types, resources, and error handling
-- `wasi:mcp/server@0.1.0` - Server implementation with async operations
-- `wasi:mcp/client@0.1.0` - Client operations for consuming MCP services
-- `wasi:mcp/streaming@0.1.0` - Streaming operations for large data and long-running tools
+## Goals
 
-This API enables WebAssembly components to implement async MCP servers with:
+1. **Complete MCP Protocol Support**: Implement all MCP 2025-06-18 features in WIT
+2. **Protocol-Faithful Design**: Direct mapping of MCP methods to typed WIT functions
+3. **WASI Preview3 Async**: Native async with `future<result<T, error>>`
+4. **Follow WASI Patterns**: Learn from successful Phase 3 proposals (HTTP, Filesystem, Sockets)
+5. **Easy Validation**: Straightforward to verify against MCP specification
+6. **Clear Path to Phase 1**: Well-defined proposal structure and requirements
 
-1. **Async Server Management**: Initialize and manage MCP server instances with `future<T>` operations
-2. **Streaming Resource Handling**: Register and serve resources with streaming support for large data
-3. **Long-Running Tool Execution**: Execute tools asynchronously with progress monitoring and cancellation
-4. **Real-Time Prompt Rendering**: Provide reusable prompt templates with async rendering
-5. **Protocol Message Processing**: Handle MCP protocol messages with native async support
+## Non-goals
 
-#### Async Database Context Provider
+- **Transport Implementation**: Transport (stdio, HTTP) is handled by hosts
+- **JSON-RPC Layer**: Protocol serialization is implementation detail
+- **AI Model Integration**: Direct LLM integration is out of scope
+- **Backward Compatibility**: Only targeting latest MCP spec
 
-A WebAssembly component that provides async database query capabilities:
+## API Overview
 
-```rust
-// WebAssembly component implementing async MCP server
-use wasi::{mcp::types::*, mcp::server::*};
+**Interface Structure** (following WASI multi-interface pattern):
 
-#[export]
-async fn init_mcp_server() -> Result<McpServer, Error> {
-    let config = ServerConfig {
-        name: "database-context".to_string(),
-        version: "1.0.0".to_string(),
-        description: Some("Async database context provider".to_string()),
-        protocol_version: "2024-11-05".to_string(),
-        capabilities: ServerCapabilities {
-            resources: Some(ResourceCapabilities { subscribe: true, list_changed: true }),
-            tools: Some(ToolCapabilities { list_changed: true }),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-    
-    let server = create_server(config).await?;
-    
-    // Register database resource with async operation
-    let resource_config = McpResourceConfig {
-        uri: "db://tables".to_string(),
-        name: "Database Tables".to_string(),
-        description: "Available database tables and schemas".to_string(),
-        mime_type: "application/json".to_string(),
-        metadata: None,
-    };
-    
-    register_resource(&server, resource_config).await?;
-    
-    // Register async query tool
-    let tool_config = McpToolConfig {
-        name: "execute-query".to_string(),
-        description: "Execute SQL queries on the database".to_string(),
-        input_schema: query_schema(),
-        output_schema: Some(result_schema()),
-        metadata: None,
-    };
-    
-    register_tool(&server, tool_config).await?;
-    
-    Ok(server)
-}
+```
+wit/
+├── deps.toml                  # wasi:io, wasi:clocks dependencies
+├── types.wit                  # Core MCP types (request-id, cursor, resources, tools, prompts)
+├── capabilities.wit           # ServerCapabilities, ClientCapabilities
+├── content.wit                # Content blocks (text, image, embedded-resource)
+├── server.wit                 # Typed server operations (initialize, list-resources, call-tool, etc.)
+├── client.wit                 # Typed client operations
+├── notifications.wit          # Notification types (list-changed, updated, progress)
+├── streaming.wit              # Streaming for large resources
+├── world.wit                  # Component worlds (mcp-server, mcp-client, mcp-proxy)
+└── preview2/                  # Preview2 version for immediate prototyping
+    ├── README.md              # Preview2 guide
+    ├── types.wit              # Simplified types (blocking)
+    ├── server.wit             # Synchronous server operations
+    └── world.wit              # Preview2 component worlds
+```
 
-#[export]
-async fn handle_tool_execution(tool_id: &str, args: &[u8]) -> Result<Vec<u8>, Error> {
-    match tool_id {
-        "execute-query" => {
-            let request: QueryRequest = serde_json::from_slice(args)?;
-            
-            // Async database query with streaming results
-            let result = execute_database_query(&request.query).await?;
-            
-            Ok(serde_json::to_vec(&result)?)
-        }
-        _ => Err(Error::new(ErrorCode::ToolNotFound, "Unknown tool"))
+**Key Design**: Each MCP protocol method has a typed WIT function:
+
+```wit
+interface server {
+    resource mcp-server {
+        // Corresponds to MCP method: initialize
+        initialize: func(params: initialize-params)
+            -> future<result<initialize-result, error>>;
+
+        // Corresponds to MCP method: resources/list
+        list-resources: func(params: paginated-request, meta: option<request-meta>)
+            -> future<result<list-resources-result, error>>;
+
+        // Corresponds to MCP method: tools/call
+        call-tool: func(name: string, arguments: option<list<u8>>, meta: option<request-meta>)
+            -> future<result<call-tool-result, error>>;
+
+        // ... all other MCP methods
     }
 }
 ```
 
-#### Streaming File System Provider
+## Examples
 
-A component that provides streaming file system access:
+### MCP Server with Typed Operations
 
 ```rust
-use wasi::{mcp::streaming::*, mcp::server::*};
+use wasi::mcp::{types::*, server::*, capabilities::*};
 
 #[export]
-async fn create_streaming_resource(resource_id: &str) -> Result<StreamingResource, Error> {
-    let resource = get_resource(&server, resource_id).await?;
-    let streaming_resource = StreamingResource::create(resource).await?;
-    
-    Ok(streaming_resource)
+fn create_database_server() -> Result<mcp-server, error> {
+    let implementation = Implementation {
+        name: "database-context".to_string(),
+        version: "1.0.0".to_string(),
+        website_url: None,
+    };
+
+    let capabilities = ServerCapabilities {
+        resources: Some(ResourcesCapability {
+            subscribe: Some(true),
+            list_changed: Some(true),
+        }),
+        tools: Some(ToolsCapability {
+            list_changed: Some(false),
+        }),
+        prompts: None,
+        logging: None,
+        sampling: None,
+        elicitation: None,
+        completions: None,
+        experimental: None,
+    };
+
+    create_server(implementation, capabilities)
 }
 
-#[export]
-async fn handle_large_file_read(resource_id: &str) -> Result<ChunkedReader, Error> {
-    let streaming_resource = create_streaming_resource(resource_id).await?;
-    let reader = ChunkedReader::create(streaming_resource, 64 * 1024).await?; // 64KB chunks
-    
-    Ok(reader)
-}
+// Implement typed server operations
+impl mcp_server {
+    async fn initialize(&self, params: InitializeParams)
+        -> Result<InitializeResult, Error>
+    {
+        // Perform version negotiation
+        let protocol_version = if params.protocol_version == "2025-06-18" {
+            "2025-06-18".to_string()
+        } else {
+            "2025-03-26".to_string() // Fallback
+        };
 
-#[export]
-async fn stream_file_content(reader: ChunkedReader) -> Result<Vec<u8>, Error> {
-    let mut content = Vec::new();
-    
-    while !reader.is_end_of_resource() {
-        if let Some(chunk) = reader.read_chunk().await? {
-            content.extend_from_slice(&chunk);
+        Ok(InitializeResult {
+            protocol_version,
+            capabilities: self.get_capabilities(),
+            server_info: self.get_implementation(),
+            instructions: Some("Database context provider for SQL queries".to_string()),
+        })
+    }
+
+    async fn list_resources(&self, params: PaginatedRequest, meta: Option<RequestMeta>)
+        -> Result<ListResourcesResult, Error>
+    {
+        let resources = vec![
+            Resource {
+                uri: "db://tables".to_string(),
+                name: "database-tables".to_string(),
+                title: Some("Database Tables".to_string()),
+                description: Some("List of all database tables".to_string()),
+                mime_type: Some("application/json".to_string()),
+                size: None,
+                annotations: None,
+            },
+        ];
+
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+        })
+    }
+
+    async fn call_tool(&self, name: String, arguments: Option<Vec<u8>>, meta: Option<RequestMeta>)
+        -> Result<CallToolResult, Error>
+    {
+        match name.as_str() {
+            "execute-query" => {
+                let args: QueryArgs = serde_json::from_slice(&arguments.unwrap())?;
+                let result = execute_database_query(&args.query).await?;
+
+                Ok(CallToolResult {
+                    content: vec![ContentBlock::Text(TextContent {
+                        content_type: "text".to_string(),
+                        text: serde_json::to_string(&result)?,
+                        annotations: None,
+                    })],
+                    structured_content: Some(serde_json::to_vec(&result)?),
+                    is_error: Some(false),
+                })
+            }
+            _ => Err(Error::tool_not_found(format!("Unknown tool: {}", name)))
         }
     }
-    
+}
+```
+
+### MCP Client with Typed Operations
+
+```rust
+use wasi::mcp::{client::*, types::*};
+
+#[export]
+async fn query_mcp_server() -> Result<Vec<Resource>, Error> {
+    let client_impl = Implementation {
+        name: "ai-agent".to_string(),
+        version: "1.0.0".to_string(),
+        website_url: None,
+    };
+
+    let capabilities = ClientCapabilities {
+        roots: None,
+        sampling: None,
+        elicitation: None,
+        experimental: None,
+    };
+
+    let client = create_client(client_impl, capabilities)?;
+
+    // Initialize connection
+    let init_params = InitializeParams {
+        protocol_version: "2025-06-18".to_string(),
+        capabilities,
+        client_info: client_impl,
+    };
+
+    let init_result = client.initialize(init_params).await?;
+    client.send_initialized()?;
+
+    // List available resources
+    let resources_result = client.list_resources(
+        PaginatedRequest { cursor: None },
+        None
+    ).await?;
+
+    Ok(resources_result.resources)
+}
+```
+
+### Streaming Large Resources
+
+```rust
+use wasi::mcp::streaming::*;
+
+#[export]
+async fn read_large_file(uri: String) -> Result<Vec<u8>, Error> {
+    // Create streaming resource
+    let streaming_resource = create_streaming_resource(uri).await?;
+
+    // Create chunked reader (64KB chunks)
+    let reader = create_chunked_reader(streaming_resource, 64 * 1024)?;
+
+    let mut content = Vec::new();
+
+    // Read progressively
+    while !reader.is_end() {
+        if let Some(chunk) = reader.read_chunk().await? {
+            content.extend_from_slice(&chunk);
+
+            // Progress tracking
+            if let Some(progress) = reader.progress_percent() {
+                println!("Progress: {:.1}%", progress);
+            }
+        }
+    }
+
     Ok(content)
 }
 ```
 
-### Detailed design discussion
+## Design Discussion
 
-The API design follows both the MCP specification and WASI Preview3 conventions, adapting MCP for the WebAssembly component model with full async support. Key design choices are detailed in the [WIT files](./wit/).
+### Protocol-Faithful Approach
 
-#### Preview3 Async Architecture
+Following successful WASI proposals like wasi-http, we map MCP semantics directly to WIT:
 
-The API is built around WASI Preview3 async primitives:
+**wasi-http precedent**: Maps HTTP methods, status codes, headers as explicit types
+**wasi-mcp approach**: Maps MCP resources, tools, prompts, capabilities as explicit types
 
-- **Future-based Operations**: All potentially blocking operations return `future<T>` for async execution
-- **Streaming Support**: Large data operations use `stream<T>` for efficient memory usage
-- **Polling Integration**: Resources provide `pollable` handles for event-driven programming
-- **Resource Management**: Proper WASI resource lifecycle with borrowing and ownership
+This provides:
+- ✅ Type safety for all MCP operations
+- ✅ Clear correspondence to MCP specification
+- ✅ Easy validation against MCP conformance tests
+- ✅ Familiar to MCP SDK developers
 
-#### Multi-Interface Design
+### Typed Methods vs Generic Message Handling
 
-Following WASI conventions, the API is split into focused interfaces:
-
-- **`wasi:mcp/types@0.1.0`**: Core types, resources, and error handling
-- **`wasi:mcp/server@0.1.0`**: Server implementation with async operations
-- **`wasi:mcp/client@0.1.0`**: Client operations for consuming MCP services  
-- **`wasi:mcp/streaming@0.1.0`**: Streaming operations for large data and long-running tools
-
-This allows for modular MCP implementations where different components can handle different aspects.
-
-#### Resource-Based Security Model
-
-The API leverages WebAssembly's capability-based security with WASI resources:
-
-- **Resource Types**: All MCP entities (servers, resources, tools) are proper WASI resources
-- **Capability Handles**: Access requires explicit resource handles (unforgeable capabilities)
-- **Sandboxed Execution**: WebAssembly components run in isolated environments
-- **Explicit Permissions**: All operations require explicit resource access
-
-#### Async Message Handling
-
-The `handle-message` function provides async MCP protocol processing:
-
+**Previous approach** (generic):
 ```wit
-handle-message: func(
-    server: borrow<mcp-server>,
-    message: list<u8>
-) -> future<result<list<u8>, error>>;
+handle-message: func(message: list<u8>) -> future<result<list<u8>, error>>;
 ```
 
-This enables:
-- **Non-blocking Protocol Processing**: Long-running operations don't block the event loop
-- **Concurrent Request Handling**: Multiple requests can be processed simultaneously
-- **Transport Abstraction**: Host environment handles transport (HTTP, stdio) while component handles protocol
-
-#### Standard Error Handling
-
-The API uses WASI-standard error patterns with base error resources:
-
+**Current approach** (typed):
 ```wit
-resource error {
-    code: func() -> error-code;
-    message: func() -> string;
-    to-debug-string: func() -> string;
-}
-
-enum error-code {
-    invalid-request,
-    method-not-found,
-    invalid-params,
-    internal-error,
-    resource-not-found,
-    tool-not-found,
-    prompt-not-found,
-    unauthorized,
-    forbidden,
-    timeout,
-    rate-limited,
-    unavailable,
-}
+initialize: func(params: initialize-params) -> future<result<initialize-result, error>>;
+list-resources: func(params: paginated-request) -> future<result<list-resources-result, error>>;
+call-tool: func(name: string, arguments: option<list<u8>>) -> future<result<call-tool-result, error>>;
 ```
 
-This ensures proper error propagation and debugging capabilities following WASI conventions.
+Benefits:
+- Compiler catches protocol errors at build time
+- No need for components to parse JSON-RPC
+- Clear async boundaries for each operation
+- Better documentation and tooling support
 
-#### Streaming and Performance
+### WASI Pattern Adherence
 
-The streaming interface enables efficient handling of large data:
+Following Phase 3 proposal patterns:
 
-- **Chunked Reading**: Large resources can be read in configurable chunks
-- **Backpressure Handling**: Streaming operations support flow control
-- **Progress Monitoring**: Long-running operations provide progress updates
-- **Cancellation Support**: Operations can be cancelled when no longer needed
+| Pattern | Source | Implementation |
+|---------|--------|----------------|
+| deps.toml dependency management | wasi-http, wasi-sockets | ✅ wit/deps.toml |
+| @since versioning | wasi-http | ✅ All interfaces |
+| Multi-interface structure | wasi-http, wasi-filesystem | ✅ 8 focused interfaces |
+| Resource-based design | wasi-filesystem | ✅ mcp-server resource |
+| Streaming integration | wasi-sockets | ✅ streaming.wit |
+| Pollable for events | wasi-io | ✅ subscribe-events |
+| Comprehensive error types | wasi-http | ✅ Detailed error-code enum |
 
-### Considered alternatives
+### Complete MCP Feature Coverage
 
-#### Synchronous-First API Design
+| MCP Feature | WIT Location | Status |
+|-------------|--------------|--------|
+| Protocol initialization | types.wit:initialize-params | ✅ |
+| Version negotiation | types.wit:protocol-version | ✅ |
+| Server capabilities | capabilities.wit:server-capabilities | ✅ |
+| Client capabilities | capabilities.wit:client-capabilities | ✅ |
+| Resources | types.wit:resource | ✅ |
+| Resource templates (RFC 6570) | types.wit:resource-template | ✅ |
+| Resource subscriptions | server.wit:subscribe-resource | ✅ |
+| Tools | types.wit:tool | ✅ |
+| Tool annotations | content.wit:tool-annotations | ✅ |
+| Prompts | types.wit:prompt | ✅ |
+| Prompt arguments | types.wit:prompt-argument | ✅ |
+| Content blocks | content.wit:content-block | ✅ |
+| Embedded resources | content.wit:embedded-resource | ✅ |
+| Pagination (cursor) | types.wit:cursor | ✅ |
+| Progress tokens | types.wit:progress-token | ✅ |
+| Notifications | notifications.wit | ✅ |
+| Logging | capabilities.wit:logging-capability | ✅ |
+| Sampling | capabilities.wit:sampling-capability | ✅ |
+| Elicitation | capabilities.wit:elicitation-capability | ✅ |
 
-We considered maintaining synchronous APIs with optional async variants, but chose async-first because:
+## Implementation Status
 
-- **Preview3 Alignment**: Full alignment with WASI Preview3 async direction
-- **Performance**: Better handling of I/O-bound operations without blocking
-- **Composability**: Native async composition enables complex MCP workflows
-- **Future-Proofing**: Easier to optimize async operations than retrofit sync APIs
+### Completed (Workstreams 1-4)
 
-#### Direct JSON-RPC Integration
+- [x] Core types with all MCP protocol types
+- [x] Complete capabilities system
+- [x] Content type system with variants
+- [x] Typed server operations for all MCP methods
+- [x] Typed client operations
+- [x] Notification system
+- [x] Streaming interface
+- [x] World definitions
+- [x] deps.toml with WASI dependencies
+- [x] @since annotations throughout
 
-We considered exposing the JSON-RPC 2.0 protocol directly through WASI, but decided against it because:
+### In Progress (Workstream 5)
 
-- **Complexity**: Components would need to implement JSON-RPC protocol details
-- **Coupling**: Tight coupling between components and transport layer
-- **Maintenance**: Protocol changes would require component updates
-- **Async Mismatch**: JSON-RPC doesn't naturally align with async resource patterns
+- [ ] README documentation (this file)
+- [ ] Usage examples
+- [ ] Migration guide
+- [ ] API reference documentation
 
-The current abstraction provides cleaner separation of concerns and better async integration.
+### Next Steps for Phase 1
 
-#### Single Monolithic Interface
+1. ✅ Complete WIT interface definitions (Preview3 + Preview2)
+2. ✅ Validate WIT files with wasm-tools (via rules_wasm_component)
+3. Create reference implementations:
+   - [ ] Rust MCP server (Preview2 for immediate demo)
+   - [ ] Go MCP client (Preview2 for immediate demo)
+   - [ ] C++ MCP proxy (Preview2 for immediate demo)
+   - [ ] Preview3 examples (when toolchain support is ready)
+4. Gather stakeholder feedback (Anthropic, WASI Subgroup)
+5. Submit Phase 1 proposal
 
-An alternative would be a single large interface containing all MCP functionality, but this was rejected because:
+## Stakeholder Interest
 
-- **Modularity**: Less modular and harder to compose
-- **Reusability**: Harder to reuse individual components
-- **Testing**: More difficult to test individual aspects
-- **WASI Patterns**: Doesn't follow established WASI multi-interface conventions
+**Target Stakeholders:**
+- **Anthropic** (MCP creators) - Protocol alignment validation
+- **WASI Subgroup** - Review of WASI patterns and conventions
+- **WebAssembly Component Model WG** - Resource management patterns
+- **MCP SDK maintainers** - Rust, TypeScript implementations
 
-The current four-interface design (`types`, `server`, `client`, `streaming`) provides better modularity and follows WASI patterns.
+**Key Questions for Stakeholders:**
+1. Does the protocol-faithful approach correctly map MCP semantics?
+2. Are there missing MCP features in the WIT definitions?
+3. Do the async patterns align with WASI Preview3 direction?
+4. Is the interface granularity appropriate?
 
-#### Blocking Operations with Timeouts
+## References
 
-We considered providing blocking operations with configurable timeouts, but chose the async approach because:
+### MCP Specification
+- [MCP 2025-06-18 Specification](https://github.com/modelcontextprotocol/specification)
+- [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- [MCP Documentation](https://modelcontextprotocol.io)
 
-- **Thread Safety**: Async operations are inherently thread-safe
-- **Resource Usage**: No thread-per-operation overhead
-- **Cancellation**: Native cancellation support through futures
-- **Integration**: Better integration with async host environments
+### WASI Proposals (Phase 3 Patterns)
+- [wasi-http](https://github.com/WebAssembly/wasi-http) - Protocol-faithful HTTP mapping
+- [wasi-filesystem](https://github.com/WebAssembly/wasi-filesystem) - Resource management patterns
+- [wasi-sockets](https://github.com/WebAssembly/wasi-sockets) - Async and streaming patterns
 
-### Stakeholder Interest & Feedback
+### WebAssembly
+- [Component Model](https://github.com/WebAssembly/component-model)
+- [WIT Language](https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md)
+- [WASI Preview 3](https://github.com/WebAssembly/WASI)
 
-TODO before entering Phase 3.
+## License
 
-**Potential Implementers:**
-- AI development platforms using WebAssembly
-- MCP server library authors  
-- WebAssembly runtime providers (Wasmtime, WAMR, etc.)
-- AI application developers building on MCP
-- Cloud providers offering AI services
-
-**Areas of Interest:**
-- **Anthropic (MCP creators)** - feedback on protocol alignment and async patterns
-- **WebAssembly runtime providers** - Preview3 async implementation feasibility
-- **AI tool developers** - API usability and performance characteristics
-- **WASI Subgroup** - alignment with Preview3 direction and conventions
-- **Component Model WG** - resource management and async patterns
-
-**Preview3 Specific Feedback Needed:**
-- Async operation patterns and future/stream type usage
-- Resource lifecycle management with async operations
-- Integration with existing WASI interfaces (io, clocks, etc.)
-- Performance implications of async MCP operations
-
-### References & acknowledgements
-
-Many thanks for valuable feedback and advice from:
-
-- The Model Context Protocol team at Anthropic
-- The WebAssembly Component Model working group
-- The WASI Subgroup for guidance on proposal structure and Preview3 patterns
-- The broader WebAssembly community for security model insights
-- Late-stage WASI proposal authors for async patterns and conventions
-
-**Key References:**
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/introduction)
-- [WebAssembly Component Model](https://github.com/WebAssembly/component-model)
-- [WASI Preview 3 Async Specification](https://github.com/WebAssembly/WASI/blob/main/Contributing.md)
-- [WIT Language Specification](https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md)
-- [WASI HTTP Proposal](https://github.com/WebAssembly/wasi-http) - async patterns reference
-- [WASI Filesystem Proposal](https://github.com/WebAssembly/wasi-filesystem) - resource management reference
-- [WASI Sockets Proposal](https://github.com/WebAssembly/wasi-sockets) - streaming patterns reference
+This proposal is licensed under the Apache License 2.0.

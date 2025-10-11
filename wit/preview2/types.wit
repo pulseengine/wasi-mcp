@@ -1,0 +1,211 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// WASI MCP Types - Preview2 Compatible
+///
+/// This is a Preview2-compatible version for immediate prototyping.
+/// Uses synchronous operations instead of future<T>.
+/// For the aspirational Preview3 version, see ../types.wit
+@since(version = 0.1.0)
+interface types {
+    use wasi:clocks/wall-clock@0.2.0.{datetime};
+
+    // ============================================================================
+    // Core Types
+    // ============================================================================
+
+    /// Opaque request identifier for tracking requests
+    @since(version = 0.1.0)
+    type request-id = string;
+
+    /// Cursor for pagination
+    @since(version = 0.1.0)
+    type cursor = string;
+
+    /// Progress token for long-running operations
+    @since(version = 0.1.0)
+    type progress-token = string;
+
+    /// Protocol version
+    @since(version = 0.1.0)
+    record protocol-version {
+        major: u32,
+        minor: u32,
+        patch: u32,
+    }
+
+    // ============================================================================
+    // Error Handling
+    // ============================================================================
+
+    /// MCP error codes (JSON-RPC 2.0 + MCP specific)
+    @since(version = 0.1.0)
+    enum error-code {
+        // JSON-RPC 2.0 standard errors
+        parse-error,           // -32700
+        invalid-request,       // -32600
+        method-not-found,      // -32601
+        invalid-params,        // -32602
+        internal-error,        // -32603
+
+        // MCP-specific errors
+        resource-not-found,
+        tool-not-found,
+        prompt-not-found,
+        unsupported-operation,
+    }
+
+    /// Error type for all MCP operations
+    @since(version = 0.1.0)
+    record error {
+        code: error-code,
+        message: string,
+        data: option<list<u8>>,  // Optional JSON data
+    }
+
+    // ============================================================================
+    // Request Metadata
+    // ============================================================================
+
+    /// Metadata for requests (progress tracking)
+    @since(version = 0.1.0)
+    record request-meta {
+        progress-token: option<progress-token>,
+    }
+
+    /// Paginated request parameters
+    @since(version = 0.1.0)
+    record paginated-request {
+        cursor: option<cursor>,
+    }
+
+    // ============================================================================
+    // Initialization
+    // ============================================================================
+
+    /// Client information for initialization
+    @since(version = 0.1.0)
+    record client-info {
+        name: string,
+        version: string,
+    }
+
+    /// Server/Client implementation information
+    @since(version = 0.1.0)
+    record implementation {
+        name: string,
+        version: string,
+    }
+
+    /// Initialize request parameters
+    @since(version = 0.1.0)
+    record initialize-params {
+        protocol-version: protocol-version,
+        client-info: client-info,
+    }
+
+    // Note: Initialize result is in capabilities interface
+
+    // ============================================================================
+    // Resources
+    // ============================================================================
+
+    /// Resource information
+    @since(version = 0.1.0)
+    record resource-info {
+        uri: string,
+        name: string,
+        description: option<string>,
+        mime-type: option<string>,
+    }
+
+    /// URI template (RFC 6570)
+    @since(version = 0.1.0)
+    record resource-template {
+        uri-template: string,
+        name: string,
+        description: option<string>,
+        mime-type: option<string>,
+    }
+
+    /// Resource contents (simplified for Preview2)
+    @since(version = 0.1.0)
+    record resource-contents {
+        uri: string,
+        mime-type: option<string>,
+        text: option<string>,
+        blob: option<list<u8>>,
+    }
+
+    // ============================================================================
+    // Tools
+    // ============================================================================
+
+    /// Tool definition
+    @since(version = 0.1.0)
+    record tool {
+        name: string,
+        description: option<string>,
+        input-schema: list<u8>,  // JSON Schema
+    }
+
+    /// Tool call result (simplified for Preview2)
+    @since(version = 0.1.0)
+    record call-tool-result {
+        content: list<u8>,  // JSON content
+        is-error: option<bool>,
+    }
+
+    // ============================================================================
+    // Prompts
+    // ============================================================================
+
+    /// Prompt definition
+    @since(version = 0.1.0)
+    record prompt {
+        name: string,
+        description: option<string>,
+        arguments: option<list<prompt-argument>>,
+    }
+
+    /// Prompt argument definition
+    @since(version = 0.1.0)
+    record prompt-argument {
+        name: string,
+        description: option<string>,
+        required: option<bool>,
+    }
+
+    /// Prompt message (simplified for Preview2)
+    @since(version = 0.1.0)
+    record prompt-message {
+        role: message-role,
+        content: string,
+    }
+
+    /// Message role
+    @since(version = 0.1.0)
+    enum message-role {
+        user,
+        assistant,
+    }
+
+    /// Get prompt result
+    @since(version = 0.1.0)
+    record get-prompt-result {
+        description: option<string>,
+        messages: list<prompt-message>,
+    }
+
+    // ============================================================================
+    // Server Status
+    // ============================================================================
+
+    /// Server operational status
+    @since(version = 0.1.0)
+    enum server-status {
+        initializing,
+        running,
+        stopping,
+        stopped,
+    }
+}

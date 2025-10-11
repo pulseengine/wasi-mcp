@@ -1,0 +1,56 @@
+package wasi:mcp@0.1.0-preview2;
+
+/// WASI MCP Worlds - Preview2 Compatible
+///
+/// Preview2-compatible component worlds for immediate prototyping.
+/// Uses WASI Preview2 dependencies (synchronous operations).
+/// For the aspirational Preview3 version with async, see ../world.wit
+
+// ============================================================================
+// MCP Server World (Preview2)
+// ============================================================================
+
+/// MCP Server World - Preview2
+///
+/// A Preview2-compatible MCP server component. Uses synchronous/blocking
+/// operations instead of async futures.
+///
+/// Use this for:
+/// - Immediate prototyping with stable toolchains
+/// - Testing MCP server implementations today
+/// - Validating the interface design with real code
+///
+/// Example: A file system context provider that exposes directories as
+/// resources and file operations as tools, built with current stable Rust/Go/C++.
+@since(version = 0.1.0)
+world mcp-server-preview2 {
+    // Core WASI Preview2 dependencies
+    import wasi:clocks/wall-clock@0.2.0;
+
+    // MCP server interface - synchronous operations
+    export server;
+}
+
+// ============================================================================
+// MCP Client World (Preview2)
+// ============================================================================
+
+/// MCP Client World - Preview2
+///
+/// A Preview2-compatible MCP client component. Uses synchronous/blocking
+/// operations for calling MCP servers.
+///
+/// Use this for:
+/// - Building MCP clients with stable toolchains
+/// - Testing client-server interactions
+/// - Creating AI applications that consume MCP servers
+///
+/// Example: A CLI tool that connects to MCP servers and queries resources.
+@since(version = 0.1.0)
+world mcp-client-preview2 {
+    // Core WASI Preview2 dependencies
+    import wasi:clocks/wall-clock@0.2.0;
+
+    // MCP client interface - synchronous operations
+    import server;  // Client imports server interface to call it
+}
