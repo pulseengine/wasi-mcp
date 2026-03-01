@@ -14,7 +14,10 @@
 
 &nbsp;
 
-A proposed [WebAssembly System Interface](https://github.com/WebAssembly/WASI) API for the Model Context Protocol, providing typed operations for MCP 2025-06-18 with WASI Preview3 async support.
+A proposed [WebAssembly System Interface](https://github.com/WebAssembly/WASI) API for the Model Context Protocol, providing typed operations for MCP 2025-06-18 with WASI 0.3 async support.
+
+> [!NOTE]
+> Part of the PulseEngine toolchain. Extends WASI standardization for Model Context Protocol interoperability.
 
 ### Current Phase
 
@@ -42,24 +45,24 @@ The Model Context Protocol (MCP) is an open standard that enables AI application
 **Why WASI for MCP?**
 - **Portability**: Run MCP servers across any WASM runtime
 - **Security**: Leverage WebAssembly's capability-based security model
-- **Performance**: Native async operations with WASI Preview3
+- **Performance**: Native async operations with WASI 0.3
 - **Composability**: Component Model enables MCP server aggregation
 - **Type Safety**: Strongly-typed WIT interfaces prevent protocol errors
 
 **Protocol Coverage**: This proposal implements the complete MCP 2025-06-18 specification including protocol initialization, resources with templates and subscriptions, tools with annotations, prompts with arguments, pagination, progress tokens, notifications, logging, and streaming support.
 
-## Two Versions: Preview2 + Preview3
+## Two Versions: WASI 0.2 + WASI 0.3
 
 | Version | Status | Use Case | Location |
 |---------|--------|----------|----------|
-| **Preview3** | Aspirational | Final standardization with async | `wit/*.wit` |
-| **Preview2** | Available now | Immediate prototyping (blocking ops) | `wit/preview2/*.wit` |
+| **WASI 0.3** | Aspirational | Final standardization with async | `wit/*.wit` |
+| **WASI 0.2** | Available now | Immediate prototyping (blocking ops) | `wit/preview2/*.wit` |
 
 ## Goals
 
 1. Complete MCP Protocol Support in WIT
 2. Protocol-Faithful Design with direct mapping of MCP methods
-3. WASI Preview3 Async with `future<result<T, error>>`
+3. WASI 0.3 async with `future<result<T, error>>`
 4. Follow WASI Patterns from successful Phase 3 proposals
 5. Clear Path to Phase 1
 
@@ -99,7 +102,7 @@ wit/
 ├── handlers.wit       # Handler interface (component exports)
 ├── client.wit         # Client operations
 ├── world.wit          # Component worlds
-└── preview2/          # Preview2 for immediate prototyping
+└── preview2/          # WASI 0.2 for immediate prototyping
 ```
 
 ## Examples
@@ -116,7 +119,7 @@ See the full [Examples section](https://github.com/pulseengine/wasi-mcp#examples
 - Typed server and client operations
 - Notification system and streaming interface
 - World definitions with deps.toml
-- Preview2 interfaces for immediate prototyping
+- WASI 0.2 interfaces for immediate prototyping
 
 ### Next Steps for Phase 1
 
@@ -129,7 +132,7 @@ See the full [Examples section](https://github.com/pulseengine/wasi-mcp#examples
 - [MCP 2025-06-18 Specification](https://github.com/modelcontextprotocol/specification)
 - [wasi-http](https://github.com/WebAssembly/wasi-http) — Protocol-faithful HTTP mapping
 - [Component Model](https://github.com/WebAssembly/component-model)
-- [WASI Preview 3](https://github.com/WebAssembly/WASI)
+- [WASI 0.3](https://github.com/WebAssembly/WASI)
 
 ## License
 
